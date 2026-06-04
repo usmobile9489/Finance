@@ -3,9 +3,9 @@
 import { useState, useEffect, useContext, useRef } from 'react'
 import Image from 'next/image'
 import { CompanyContext } from '../layout'
-import { getInvoices, createInvoice, updateInvoice, deleteInvoice, getContacts } from '@/lib/api'
+import { getInvoices, createInvoice, updateInvoice, deleteInvoice, getContacts, getItems } from '@/lib/api'
 import { InvoiceWithContact } from '@/lib/api'
-import { Contact, InvoiceItem } from '@/types/database'
+import { Contact, InvoiceItem, Item } from '@/types/database'
 
 interface LineItem {
   description: string
@@ -27,6 +27,7 @@ export default function InvoicesPage() {
   const { selectedCompanyId, selectedCompany, companies } = useContext(CompanyContext)
   const [invoices, setInvoices] = useState<InvoiceWithContact[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [catalogItems, setCatalogItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -71,12 +72,14 @@ export default function InvoicesPage() {
     if (companyIds.length === 0) return
     setLoading(true)
     try {
-      const [invs, ctcs] = await Promise.all([
+      const [invs, ctcs, itms] = await Promise.all([
         Promise.all(companyIds.map(id => getInvoices(id))).then(r => r.flat()),
         Promise.all(companyIds.map(id => getContacts(id))).then(r => r.flat()),
+        Promise.all(companyIds.map(id => getItems(id))).then(r => r.flat()),
       ])
       setInvoices(invs)
       setContacts(ctcs)
+      setCatalogItems(itms)
     } catch (e) {
       console.error(e)
     } finally {
@@ -302,7 +305,33 @@ export default function InvoicesPage() {
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-medium text-gray-600">Line Items</label>
-                  <button type="button" onClick={addLineItem} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">+ Add Line</button>
+                  <div className="flex gap-3 items-center">
+                    {catalogItems.length > 0 && (
+                      <select
+                        onChange={e => {
+                          const item = catalogItems.find(it => it.id === e.target.value)
+                          if (item) {
+                            addLineItem()
+                            setLineItems(prev => {
+                              const updated = [...prev]
+                              const last = updated.length - 1
+                              updated[last] = { description: item.name, quantity: 1, unit_price: item.base_price, line_total: item.base_price }
+                              return updated
+                            })
+                          }
+                          e.target.value = ''
+                        }}
+                        className="text-xs border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        defaultValue=""
+                      >
+                        <option value="">+ From catalog</option>
+                        {catalogItems.map(item => (
+                          <option key={item.id} value={item.id}>{item.name} — ${item.base_price}</option>
+                        ))}
+                      </select>
+                    )}
+                    <button type="button" onClick={addLineItem} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">+ Add blank</button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {lineItems.map((li, i) => (

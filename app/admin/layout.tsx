@@ -85,6 +85,7 @@ const NAV: NavSection[] = [
       { label: 'Invoices', href: '/admin/invoices', icon: '🧾' },
       { label: 'Customers', href: '/admin/customers', icon: '👥' },
       { label: 'Items', href: '/admin/items', icon: '📦' },
+      { label: 'Forms', href: '/admin/forms', icon: '📋' },
     ],
   },
   {
@@ -155,13 +156,9 @@ function Sidebar({ open, onClose, pathname }: { open: boolean; onClose: () => vo
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="p-2 border-t border-gray-200 dark:border-gray-800 shrink-0">
-          <Link href="/dashboard"
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors mb-0.5">
-            <span className="text-base">👤</span>
-            <span>Personal Dashboard</span>
-          </Link>
+        {/* Version */}
+        <div className="p-3 border-t border-gray-200 dark:border-gray-800 shrink-0">
+          <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Finance Manager v1.0</p>
         </div>
       </aside>
     </>

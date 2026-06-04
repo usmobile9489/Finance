@@ -244,6 +244,44 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Customer-facing Form Links */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900 dark:text-white">Customer Form Links</h3>
+          <Link href="/admin/forms" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Manage forms →</Link>
+        </div>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">Share these links with your customers to collect orders and requests.</p>
+        <div className="space-y-3">
+          {[
+            { label: '🗝️ Keying Order Form', path: '/keying', desc: 'Customer keying order submission' },
+          ].map(link => {
+            const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${link.path}` : link.path
+            return (
+              <div key={link.path} className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2.5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{link.label}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{fullUrl}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => navigator.clipboard.writeText(fullUrl)}
+                    className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-2.5 py-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 font-medium">
+                    Copy
+                  </button>
+                  <Link href={link.path} target="_blank"
+                    className="text-xs bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 font-medium">
+                    Open ↗
+                  </Link>
+                </div>
+              </div>
+            )
+          })}
+          <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">
+            Custom forms you build in <Link href="/admin/forms" className="text-indigo-500 hover:underline">Forms</Link> each get their own shareable link too.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
