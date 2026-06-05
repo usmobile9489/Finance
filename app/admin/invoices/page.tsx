@@ -146,6 +146,16 @@ export default function InvoicesPage() {
     } catch (err: unknown) { alert(err instanceof Error ? err.message : 'Delete failed') }
   }
 
+  const handlePrint = () => {
+    if (!previewInvoice) return
+    const originalTitle = document.title
+    // Browser print header shows the document title — set it to the invoice number
+    document.title = previewInvoice.invoice_number
+    const restore = () => { document.title = originalTitle; window.removeEventListener('afterprint', restore) }
+    window.addEventListener('afterprint', restore)
+    window.print()
+  }
+
   const previewCompany = previewInvoice
     ? (companies.find(c => c.id === previewInvoice.company_id) ?? selectedCompany ?? null)
     : null
@@ -348,12 +358,15 @@ export default function InvoicesPage() {
         <div className="fixed inset-0 bg-black/60 flex items-start justify-center z-50 px-4 py-6 overflow-y-auto print:bg-white print:p-0 print:overflow-visible" data-invoice-overlay>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl my-auto print:shadow-none print:rounded-none print:max-w-none print:my-0">
             {/* Toolbar (hidden when printing) */}
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 no-print">
-              <h3 className="text-lg font-bold text-gray-900">Invoice {previewInvoice.invoice_number}</h3>
-              <div className="flex gap-3">
-                <button onClick={() => window.print()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium">🖨 Print / Save PDF</button>
-                <button onClick={() => setPreviewInvoice(null)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium">Close</button>
+            <div className="px-6 py-4 border-b border-gray-100 no-print">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-900">Invoice {previewInvoice.invoice_number}</h3>
+                <div className="flex gap-3">
+                  <button onClick={handlePrint} className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium">🖨 Print / Save PDF</button>
+                  <button onClick={() => setPreviewInvoice(null)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium">Close</button>
+                </div>
               </div>
+              <p className="text-xs text-gray-400 mt-2">Tip: in the print window, open <b>More settings</b> and turn off <b>Headers and footers</b> to hide the date &amp; page title.</p>
             </div>
 
             {/* Printable area */}

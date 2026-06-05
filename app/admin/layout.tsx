@@ -65,8 +65,9 @@ const MODULES_BY_KIND: Record<CompanyKind, Mod[]> = {
     { label: 'Reports', href: '/admin/reports', icon: '📈' },
   ],
   keying: [
-    { label: 'Locks Buy/Sell', href: '/admin/keying-locks', icon: '🔒' },
     { label: 'Master Key Orders', href: '/admin/keying-orders', icon: '🗝️' },
+    { label: 'Items', href: '/admin/items', icon: '📦' },
+    { label: 'Pins Inventory', href: '/admin/keying-inventory', icon: '📌' },
     { label: 'Expenses', href: '/admin/keying-expenses', icon: '🧰' },
     { label: 'Forms', href: '/admin/forms', icon: '📋' },
     { label: 'Contacts', href: '/admin/customers', icon: '👥' },

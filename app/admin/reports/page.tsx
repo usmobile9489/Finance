@@ -61,16 +61,11 @@ export default function ReportsPage() {
       }
 
       if (module === 'all' || module === 'business' || module === 'locksmith') {
-        // Keying locks buy/sell
-        const { data: locks } = await supabase.from('keying_locks').select('cost_price, sold_price, status, sale_date').in('company_id', companyIds).eq('status', 'sold')
-        const ld = (locks || []).filter(r => inRange(r.sale_date))
-        const lockRev = ld.reduce((s, r) => s + Number(r.sold_price || 0), 0)
-        const lockCost = ld.reduce((s, r) => s + Number(r.cost_price || 0), 0)
-        // Keying business expenses
+        // Keying business expenses (pins, tools)
         const { data: kexp } = await supabase.from('keying_expenses').select('amount, expense_date').in('company_id', companyIds)
         const ed = (kexp || []).filter(r => inRange(r.expense_date))
         const expTotal = ed.reduce((s, r) => s + Number(r.amount || 0), 0)
-        if (lockRev || lockCost || expTotal) push('Keying (locks − expenses)', lockRev, lockCost + expTotal)
+        if (expTotal) push('Keying Expenses', 0, expTotal)
 
         // Locksmith projects (if used)
         const { data: proj } = await supabase.from('locksmith_projects').select('invoice_amount, material_cost, labor_cost, status').in('company_id', companyIds).eq('status', 'completed')

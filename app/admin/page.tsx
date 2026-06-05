@@ -32,12 +32,11 @@ export default function AdminDashboard() {
       const allIds = companies.map(c => c.id)
 
       // Fetch every source once, scoped to all companies
-      const [invoices, phones, services, rentals, locks, kexp, locksmith, transactions, personalTx] = await Promise.all([
+      const [invoices, phones, services, rentals, kexp, locksmith, transactions, personalTx] = await Promise.all([
         supabase.from('invoices').select('company_id, total, status').in('company_id', allIds),
         supabase.from('phone_inventory').select('company_id, purchase_price, sale_price, status').in('company_id', allIds),
         supabase.from('phone_services').select('company_id, price_charged, cost_to_business, status').in('company_id', allIds),
         supabase.from('phone_rentals').select('company_id, rental_amount, status').in('company_id', allIds),
-        supabase.from('keying_locks').select('company_id, cost_price, sold_price, status').in('company_id', allIds),
         supabase.from('keying_expenses').select('company_id, amount').in('company_id', allIds),
         supabase.from('locksmith_projects').select('company_id, invoice_amount, material_cost, labor_cost, status').in('company_id', allIds),
         supabase.from('transactions').select('company_id, amount, type').in('company_id', allIds),
@@ -61,8 +60,6 @@ export default function AdminDashboard() {
       ;(services.data || []).forEach(r => { if (r.status === 'completed') add(r.company_id, Number(r.price_charged) || 0, Number(r.cost_to_business) || 0) })
       // Phone rentals
       ;(rentals.data || []).forEach(r => { if (r.status === 'returned') add(r.company_id, Number(r.rental_amount) || 0, 0) })
-      // Keying locks
-      ;(locks.data || []).forEach(r => { if (r.status === 'sold') add(r.company_id, Number(r.sold_price) || 0, Number(r.cost_price) || 0) })
       // Keying business expenses (pins/tools) → expense, reduces profit
       ;(kexp.data || []).forEach(r => add(r.company_id, 0, Number(r.amount) || 0))
       // Locksmith projects
