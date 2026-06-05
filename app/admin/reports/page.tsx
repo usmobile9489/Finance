@@ -73,11 +73,11 @@ export default function ReportsPage() {
         if (pd.length) push('Locksmith Projects', pd.reduce((s, r) => s + Number(r.invoice_amount || 0), 0), pd.reduce((s, r) => s + Number(r.material_cost || 0) + Number(r.labor_cost || 0), 0))
       }
 
-      // Paid invoices
+      // Paid invoices (revenue = total, expense = cost)
       if (module === 'all' || module === 'business') {
-        const { data } = await supabase.from('invoices').select('total, status, issue_date').in('company_id', companyIds).eq('status', 'paid')
+        const { data } = await supabase.from('invoices').select('total, cost, status, issue_date').in('company_id', companyIds).eq('status', 'paid')
         const d = (data || []).filter(r => inRange(r.issue_date))
-        if (d.length) push('Paid Invoices', d.reduce((s, r) => s + Number(r.total || 0), 0), 0)
+        if (d.length) push('Paid Invoices', d.reduce((s, r) => s + Number(r.total || 0), 0), d.reduce((s, r) => s + Number(r.cost || 0), 0))
       }
 
       setRows(results)

@@ -246,6 +246,21 @@ export async function updateInvoice(id: string, updates: Partial<Invoice>) {
   return data as Invoice
 }
 
+export async function updateInvoiceWithItems(
+  id: string,
+  updates: Partial<Invoice>,
+  lineItems: Array<{ description: string; quantity: number; unit_price: number; line_total: number }>
+) {
+  const { data, error } = await supabase.from('invoices').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  await supabase.from('invoice_items').delete().eq('invoice_id', id)
+  if (lineItems.length > 0) {
+    const { error: e2 } = await supabase.from('invoice_items').insert(lineItems.map(li => ({ ...li, invoice_id: id })))
+    if (e2) throw e2
+  }
+  return data as Invoice
+}
+
 export async function deleteInvoice(id: string) {
   const { error } = await supabase.from('invoices').delete().eq('id', id)
   if (error) throw error

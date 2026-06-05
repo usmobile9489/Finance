@@ -33,7 +33,7 @@ export default function AdminDashboard() {
 
       // Fetch every source once, scoped to all companies
       const [invoices, phones, services, rentals, kexp, locksmith, transactions, personalTx] = await Promise.all([
-        supabase.from('invoices').select('company_id, total, status').in('company_id', allIds),
+        supabase.from('invoices').select('company_id, total, cost, status').in('company_id', allIds),
         supabase.from('phone_inventory').select('company_id, purchase_price, sale_price, status').in('company_id', allIds),
         supabase.from('phone_services').select('company_id, price_charged, cost_to_business, status').in('company_id', allIds),
         supabase.from('phone_rentals').select('company_id, rental_amount, status').in('company_id', allIds),
@@ -52,8 +52,8 @@ export default function AdminDashboard() {
         plByCompany[cid].expenses += exp
       }
 
-      // Paid invoices → revenue
-      ;(invoices.data || []).forEach(r => { if (r.status === 'paid') add(r.company_id, Number(r.total) || 0, 0) })
+      // Paid invoices → revenue (total) and cost → expense, so net = profit
+      ;(invoices.data || []).forEach(r => { if (r.status === 'paid') add(r.company_id, Number(r.total) || 0, Number(r.cost) || 0) })
       // Phone buy/sell
       ;(phones.data || []).forEach(r => { if (r.status === 'sold') add(r.company_id, Number(r.sale_price) || 0, Number(r.purchase_price) || 0) })
       // Phone services

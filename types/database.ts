@@ -96,6 +96,7 @@ export interface Invoice {
   subtotal: number
   tax: number
   total: number
+  cost: number
   status: 'draft' | 'pending_approval' | 'sent' | 'paid'
   issue_date: string
   due_date: string

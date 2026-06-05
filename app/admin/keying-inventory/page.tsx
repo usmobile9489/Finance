@@ -9,6 +9,7 @@ type InvItem = {
   id: string
   company_id: string
   name: string
+  size: string | null
   quantity: number
   unit: string
   low_threshold: number
@@ -22,7 +23,7 @@ export default function KeyingInventoryPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState({ name: '', quantity: '', unit: 'pcs', low_threshold: '', notes: '' })
+  const [form, setForm] = useState({ size: '', quantity: '', low_threshold: '', notes: '' })
 
   const companyIds = selectedCompanyId === 'all' ? companies.map(c => c.id) : [selectedCompanyId]
 
@@ -42,12 +43,12 @@ export default function KeyingInventoryPage() {
     try {
       const companyId = selectedCompanyId === 'all' ? companies[0].id : selectedCompanyId
       const { error } = await supabase.from('keying_inventory').insert([{
-        company_id: companyId, name: form.name, quantity: parseInt(form.quantity) || 0,
-        unit: form.unit || 'pcs', low_threshold: parseInt(form.low_threshold) || 0, notes: form.notes || null,
+        company_id: companyId, name: form.size, size: form.size, quantity: parseInt(form.quantity) || 0,
+        unit: 'pcs', low_threshold: parseInt(form.low_threshold) || 0, notes: form.notes || null,
       }])
       if (error) throw error
       setShowAdd(false)
-      setForm({ name: '', quantity: '', unit: 'pcs', low_threshold: '', notes: '' })
+      setForm({ size: '', quantity: '', low_threshold: '', notes: '' })
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed') } finally { setSaving(false) }
   }
@@ -106,7 +107,7 @@ export default function KeyingInventoryPage() {
                 return (
                   <div key={item.id} className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{item.name}</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">Size {item.size || item.name}</p>
                       {item.notes && <p className="text-xs text-gray-400 dark:text-gray-500">{item.notes}</p>}
                     </div>
                     {low && <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full font-medium shrink-0">Low</span>}
@@ -133,20 +134,17 @@ export default function KeyingInventoryPage() {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add Pin Type</h2>
             {error && <p className="text-red-600 text-sm mb-3 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
             <form onSubmit={handleAdd} className="space-y-3">
-              <input type="text" placeholder="Pin name / size *" required value={form.name}
-                onChange={e => setForm({ ...form, name: e.target.value })}
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Quantity *</label>
-                  <input type="number" min="0" required placeholder="0" value={form.quantity}
-                    onChange={e => setForm({ ...form, quantity: e.target.value })}
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Size *</label>
+                  <input type="text" required placeholder="e.g. 240B" value={form.size}
+                    onChange={e => setForm({ ...form, size: e.target.value })}
                     className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Unit</label>
-                  <input type="text" placeholder="pcs" value={form.unit}
-                    onChange={e => setForm({ ...form, unit: e.target.value })}
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Amount *</label>
+                  <input type="number" min="0" required placeholder="e.g. 10" value={form.quantity}
+                    onChange={e => setForm({ ...form, quantity: e.target.value })}
                     className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>

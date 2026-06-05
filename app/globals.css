@@ -34,6 +34,12 @@ code {
     background: #fff !important;
   }
   .no-print { display: none !important; }
-  .invoice-print { color: #1f2937 !important; }
-  @page { margin: 16mm; }
+  .invoice-print {
+    color: #1f2937 !important;
+    /* our own margin since @page margin is 0 */
+    padding: 14mm 14mm !important;
+  }
+  /* margin:0 removes the browser's default date / title / URL headers & footers */
+  @page { margin: 0; size: auto; }
+  html, body { margin: 0 !important; }
 }

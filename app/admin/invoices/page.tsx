@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useContext } from 'react'
 import { CompanyContext } from '../layout'
-import { getInvoices, createInvoice, updateInvoice, deleteInvoice, getContacts, getItems } from '@/lib/api'
+import { getInvoices, createInvoice, updateInvoice, updateInvoiceWithItems, deleteInvoice, getContacts, getItems } from '@/lib/api'
 import { InvoiceWithContact } from '@/lib/api'
 import { Contact, InvoiceItem, Item } from '@/types/database'
 
@@ -34,12 +34,14 @@ export default function InvoicesPage() {
   const [error, setError] = useState<string | null>(null)
   const [previewInvoice, setPreviewInvoice] = useState<InvoiceWithContact | null>(null)
 
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({
     contact_id: '',
     invoice_number: '',
     issue_date: new Date().toISOString().split('T')[0],
     due_date: '',
     tax: '0',
+    cost: '0',
     notes: '',
     status: 'draft' as typeof STATUS_OPTIONS[number],
     is_recurring: false,
@@ -77,13 +79,32 @@ export default function InvoicesPage() {
 
   const openCreate = () => {
     const co = selectedCompany ?? companies[0]
+    setEditingId(null)
     setForm({
       contact_id: '', invoice_number: generateInvoiceNumber(),
       issue_date: new Date().toISOString().split('T')[0], due_date: '',
-      tax: '0', notes: '', status: 'draft', is_recurring: false, recurring_frequency: 'monthly',
+      tax: '0', cost: '0', notes: '', status: 'draft', is_recurring: false, recurring_frequency: 'monthly',
       from_name: co?.name || '', from_address: co?.address || '', from_email: co?.email || '', from_phone: co?.phone || '',
     })
     setLineItems([{ description: '', quantity: 1, unit_price: 0, line_total: 0 }])
+    setError(null)
+    setShowModal(true)
+  }
+
+  const openEdit = (inv: InvoiceWithContact) => {
+    setEditingId(inv.id)
+    setForm({
+      contact_id: inv.contact_id, invoice_number: inv.invoice_number,
+      issue_date: inv.issue_date, due_date: inv.due_date || '',
+      tax: String(inv.subtotal ? (Number(inv.tax) / inv.subtotal * 100).toFixed(2) : '0'),
+      cost: String(inv.cost ?? 0), notes: inv.notes || '', status: inv.status,
+      is_recurring: inv.is_recurring, recurring_frequency: inv.recurring_frequency || 'monthly',
+      from_name: inv.from_name || '', from_address: inv.from_address || '', from_email: inv.from_email || '', from_phone: inv.from_phone || '',
+    })
+    const its = (inv.invoice_items || []) as InvoiceItem[]
+    setLineItems(its.length > 0
+      ? its.map(it => ({ description: it.description || '', quantity: it.quantity, unit_price: it.unit_price, line_total: it.line_total }))
+      : [{ description: '', quantity: 1, unit_price: 0, line_total: 0 }])
     setError(null)
     setShowModal(true)
   }
@@ -110,24 +131,28 @@ export default function InvoicesPage() {
     const companyId = selectedCompanyId === 'all' ? companies[0]?.id : selectedCompanyId
     if (!companyId || !form.contact_id) { setError('Please select a customer.'); return }
     setSaving(true); setError(null)
+    const payload = {
+      company_id: companyId, contact_id: form.contact_id, invoice_number: form.invoice_number,
+      issue_date: form.issue_date, due_date: form.due_date || form.issue_date,
+      subtotal, tax: taxAmount, total, cost: parseFloat(form.cost) || 0, status: form.status, notes: form.notes || null,
+      is_recurring: form.is_recurring,
+      recurring_frequency: form.is_recurring ? form.recurring_frequency : undefined,
+      from_name: form.from_name || null, from_address: form.from_address || null,
+      from_email: form.from_email || null, from_phone: form.from_phone || null,
+    }
+    const cleanItems = lineItems.filter(li => li.description)
     try {
-      const inv = await createInvoice(
-        {
-          company_id: companyId, contact_id: form.contact_id, invoice_number: form.invoice_number,
-          issue_date: form.issue_date, due_date: form.due_date || form.issue_date,
-          subtotal, tax: taxAmount, total, status: form.status, notes: form.notes || null,
-          is_recurring: form.is_recurring,
-          recurring_frequency: form.is_recurring ? form.recurring_frequency : undefined,
-          from_name: form.from_name || null, from_address: form.from_address || null,
-          from_email: form.from_email || null, from_phone: form.from_phone || null,
-        },
-        lineItems.filter(li => li.description)
-      )
-      const contact = contacts.find(c => c.id === form.contact_id)
-      setInvoices(invs => [{ ...inv, contacts: contact ? { name: contact.name, email: contact.email } : null }, ...invs])
+      if (editingId) {
+        await updateInvoiceWithItems(editingId, payload, cleanItems)
+        await load()
+      } else {
+        const inv = await createInvoice(payload, cleanItems)
+        const contact = contacts.find(c => c.id === form.contact_id)
+        setInvoices(invs => [{ ...inv, contacts: contact ? { name: contact.name, email: contact.email } : null, invoice_items: cleanItems.map(ci => ({ ...ci, id: '', invoice_id: inv.id })) }, ...invs])
+      }
       setShowModal(false)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to create invoice')
+      setError(err instanceof Error ? err.message : 'Failed to save invoice')
     } finally { setSaving(false) }
   }
 
@@ -194,30 +219,34 @@ export default function InvoicesPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    {['Invoice #', 'Customer', 'Total', 'Status (internal)', 'Due Date', 'Actions'].map(h => (
+                    {['Invoice #', 'Customer', 'Total', 'Cost', 'Profit', 'Status (internal)', 'Actions'].map(h => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                  {invoices.map(inv => (
+                  {invoices.map(inv => {
+                    const profit = Number(inv.total) - Number(inv.cost || 0)
+                    return (
                     <tr key={inv.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                       <td className="px-5 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{inv.invoice_number}</td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-400">{inv.contacts?.name || '—'}</td>
                       <td className="px-5 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{fmt(inv.total)}</td>
+                      <td className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">{Number(inv.cost) > 0 ? fmt(inv.cost) : '—'}</td>
+                      <td className={`px-5 py-4 text-sm font-semibold ${profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{fmt(profit)}</td>
                       <td className="px-5 py-4 text-sm">
                         <select value={inv.status} onChange={e => handleStatusChange(inv.id, e.target.value as typeof STATUS_OPTIONS[number])}
                           className={`px-2 py-1 rounded-full text-xs font-semibold border-0 cursor-pointer ${STATUS_COLORS[inv.status] || ''}`}>
                           {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                         </select>
                       </td>
-                      <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-400">{inv.due_date || '—'}</td>
                       <td className="px-5 py-4 text-sm flex gap-3 flex-wrap items-center">
-                        <button onClick={() => setPreviewInvoice(inv)} className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">Open / Print</button>
+                        <button onClick={() => setPreviewInvoice(inv)} className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">Print</button>
+                        <button onClick={() => openEdit(inv)} className="text-gray-600 dark:text-gray-300 hover:underline font-medium">Edit</button>
                         <button onClick={() => handleDelete(inv.id)} className="text-red-500 hover:text-red-700 font-medium">Delete</button>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
@@ -228,7 +257,7 @@ export default function InvoicesPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4 py-6 overflow-y-auto">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl p-6 my-auto">
-            <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Create Invoice</h3>
+            <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">{editingId ? 'Edit Invoice' : 'Create Invoice'}</h3>
             {error && <p className="text-red-600 text-sm mb-3 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
             <form onSubmit={handleSave} className="space-y-4">
               {/* From details (editable) */}
@@ -324,7 +353,16 @@ export default function InvoicesPage() {
                     className="w-20 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-indigo-500" />
                 </div>
                 <div className="flex justify-between text-sm font-bold border-t border-gray-200 dark:border-gray-600 pt-2">
-                  <span className="text-gray-900 dark:text-white">Total</span><span className="text-indigo-600 dark:text-indigo-400">{fmt(total)}</span>
+                  <span className="text-gray-900 dark:text-white">Total (customer pays)</span><span className="text-indigo-600 dark:text-indigo-400">{fmt(total)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm pt-2 border-t border-gray-200 dark:border-gray-600">
+                  <span className="text-gray-600 dark:text-gray-400">Your cost <span className="text-xs text-gray-400">(materials/goods — not shown to customer)</span></span>
+                  <input type="number" min="0" step="0.01" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })}
+                    className="w-24 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                </div>
+                <div className="flex justify-between text-sm font-semibold">
+                  <span className="text-gray-700 dark:text-gray-300">Your profit</span>
+                  <span className={total - (parseFloat(form.cost) || 0) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{fmt(total - (parseFloat(form.cost) || 0))}</span>
                 </div>
               </div>
 
@@ -345,7 +383,7 @@ export default function InvoicesPage() {
                 rows={2} className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
 
               <div className="flex gap-3 pt-1">
-                <button type="submit" disabled={saving} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">{saving ? 'Creating...' : 'Create Invoice'}</button>
+                <button type="submit" disabled={saving} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">{saving ? 'Saving...' : editingId ? 'Save Changes' : 'Create Invoice'}</button>
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">Cancel</button>
               </div>
             </form>
@@ -366,7 +404,6 @@ export default function InvoicesPage() {
                   <button onClick={() => setPreviewInvoice(null)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium">Close</button>
                 </div>
               </div>
-              <p className="text-xs text-gray-400 mt-2">Tip: in the print window, open <b>More settings</b> and turn off <b>Headers and footers</b> to hide the date &amp; page title.</p>
             </div>
 
             {/* Printable area */}
