@@ -22,3 +22,18 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
+
+/* ── Print: only the invoice shows, on the same page (no new window) ── */
+@media print {
+  body * { visibility: hidden; }
+  [data-invoice-overlay], [data-invoice-overlay] * { visibility: visible; }
+  [data-invoice-overlay] {
+    position: absolute;
+    inset: 0;
+    display: block !important;
+    background: #fff !important;
+  }
+  .no-print { display: none !important; }
+  .invoice-print { color: #1f2937 !important; }
+  @page { margin: 16mm; }
+}

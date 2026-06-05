@@ -22,57 +22,78 @@ export default function ReportsPage() {
   async function generateReport() {
     setLoading(true)
     setGenerated(false)
+    try {
+      const results: ReportRow[] = []
+      const inRange = (d: string | null) => {
+        if (!d) return true
+        if (dateFrom && d < dateFrom) return false
+        if (dateTo && d > dateTo) return false
+        return true
+      }
+      const push = (label: string, income: number, expense: number) => {
+        results.push({ label, income, expense, profit: income - expense })
+      }
 
-    const results: ReportRow[] = []
+      if (module === 'all' || module === 'personal') {
+        const { data } = await supabase.from('personal_transactions').select('type, amount, date')
+        const d = (data || []).filter(r => inRange(r.date))
+        const income = d.filter(r => r.type === 'income').reduce((s, r) => s + Number(r.amount), 0)
+        const expense = d.filter(r => r.type !== 'income').reduce((s, r) => s + Number(r.amount), 0)
+        push('Personal Finance', income, expense)
+      }
 
-    if (module === 'all' || module === 'personal') {
-      const { data } = await supabase.from('personal_transactions').select('type, amount, date')
-        .gte(dateFrom ? 'date' : 'id', dateFrom || '00000000-0000-0000-0000-000000000000')
-        .lte(dateTo ? 'date' : 'date', dateTo || '9999-12-31')
-      const d = data || []
-      const income = d.filter(r => r.type === 'income').reduce((s, r) => s + Number(r.amount), 0)
-      const expense = d.filter(r => r.type !== 'income').reduce((s, r) => s + Number(r.amount), 0)
-      if (income + expense > 0) results.push({ label: 'Personal Finance', income, expense, profit: income - expense })
+      if (module === 'all' || module === 'business' || module === 'phone-sales') {
+        const { data } = await supabase.from('phone_inventory').select('purchase_price, sale_price, status, sale_date').in('company_id', companyIds).eq('status', 'sold')
+        const d = (data || []).filter(r => inRange(r.sale_date))
+        push('Phone Buy/Sell', d.reduce((s, r) => s + Number(r.sale_price || 0), 0), d.reduce((s, r) => s + Number(r.purchase_price || 0), 0))
+      }
+
+      if (module === 'all' || module === 'business' || module === 'phone-service') {
+        const { data } = await supabase.from('phone_services').select('price_charged, cost_to_business, service_date, status').in('company_id', companyIds).eq('status', 'completed')
+        const d = (data || []).filter(r => inRange(r.service_date))
+        push('Phone Service', d.reduce((s, r) => s + Number(r.price_charged || 0), 0), d.reduce((s, r) => s + Number(r.cost_to_business || 0), 0))
+      }
+
+      if (module === 'all' || module === 'business' || module === 'phone-rental') {
+        const { data } = await supabase.from('phone_rentals').select('rental_amount, status').in('company_id', companyIds).eq('status', 'returned')
+        const d = data || []
+        push('Phone Rental', d.reduce((s, r) => s + Number(r.rental_amount || 0), 0), 0)
+      }
+
+      if (module === 'all' || module === 'business' || module === 'locksmith') {
+        // Keying locks buy/sell
+        const { data: locks } = await supabase.from('keying_locks').select('cost_price, sold_price, status, sale_date').in('company_id', companyIds).eq('status', 'sold')
+        const ld = (locks || []).filter(r => inRange(r.sale_date))
+        const lockRev = ld.reduce((s, r) => s + Number(r.sold_price || 0), 0)
+        const lockCost = ld.reduce((s, r) => s + Number(r.cost_price || 0), 0)
+        // Keying business expenses
+        const { data: kexp } = await supabase.from('keying_expenses').select('amount, expense_date').in('company_id', companyIds)
+        const ed = (kexp || []).filter(r => inRange(r.expense_date))
+        const expTotal = ed.reduce((s, r) => s + Number(r.amount || 0), 0)
+        if (lockRev || lockCost || expTotal) push('Keying (locks − expenses)', lockRev, lockCost + expTotal)
+
+        // Locksmith projects (if used)
+        const { data: proj } = await supabase.from('locksmith_projects').select('invoice_amount, material_cost, labor_cost, status').in('company_id', companyIds).eq('status', 'completed')
+        const pd = proj || []
+        if (pd.length) push('Locksmith Projects', pd.reduce((s, r) => s + Number(r.invoice_amount || 0), 0), pd.reduce((s, r) => s + Number(r.material_cost || 0) + Number(r.labor_cost || 0), 0))
+      }
+
+      // Paid invoices
+      if (module === 'all' || module === 'business') {
+        const { data } = await supabase.from('invoices').select('total, status, issue_date').in('company_id', companyIds).eq('status', 'paid')
+        const d = (data || []).filter(r => inRange(r.issue_date))
+        if (d.length) push('Paid Invoices', d.reduce((s, r) => s + Number(r.total || 0), 0), 0)
+      }
+
+      setRows(results)
+      setGenerated(true)
+    } catch (e) {
+      console.error(e)
+      setRows([])
+      setGenerated(true)
+    } finally {
+      setLoading(false)
     }
-
-    if (module === 'all' || module === 'business' || module === 'phone-sales') {
-      const { data } = await supabase.from('phone_inventory').select('purchase_price, sale_price, status')
-        .in('company_id', companyIds).eq('status', 'sold')
-      const d = data || []
-      const income = d.reduce((s, r) => s + Number(r.sale_price || 0), 0)
-      const expense = d.reduce((s, r) => s + Number(r.purchase_price), 0)
-      if (income + expense > 0) results.push({ label: 'Phone Buy/Sell', income, expense, profit: income - expense })
-    }
-
-    if (module === 'all' || module === 'business' || module === 'phone-service') {
-      const { data } = await supabase.from('phone_services').select('price_charged, cost_to_business')
-        .in('company_id', companyIds).eq('status', 'completed')
-      const d = data || []
-      const income = d.reduce((s, r) => s + Number(r.price_charged), 0)
-      const expense = d.reduce((s, r) => s + Number(r.cost_to_business), 0)
-      if (income + expense > 0) results.push({ label: 'Phone Service', income, expense, profit: income - expense })
-    }
-
-    if (module === 'all' || module === 'business' || module === 'phone-rental') {
-      const { data } = await supabase.from('phone_rentals').select('rental_amount, deposit')
-        .in('company_id', companyIds).eq('status', 'returned')
-      const d = data || []
-      const income = d.reduce((s, r) => s + Number(r.rental_amount), 0)
-      if (income > 0) results.push({ label: 'Phone Rental', income, expense: 0, profit: income })
-    }
-
-    if (module === 'all' || module === 'business' || module === 'locksmith') {
-      const { data } = await supabase.from('locksmith_projects').select('invoice_amount, material_cost, labor_cost')
-        .in('company_id', companyIds).eq('status', 'completed')
-      const d = data || []
-      const income = d.reduce((s, r) => s + Number(r.invoice_amount), 0)
-      const expense = d.reduce((s, r) => s + Number(r.material_cost) + Number(r.labor_cost), 0)
-      if (income + expense > 0) results.push({ label: 'Locksmith', income, expense, profit: income - expense })
-    }
-
-    setRows(results)
-    setGenerated(true)
-    setLoading(false)
   }
 
   const totals = rows.reduce((acc, r) => ({ income: acc.income + r.income, expense: acc.expense + r.expense, profit: acc.profit + r.profit }), { income: 0, expense: 0, profit: 0 })

@@ -103,6 +103,10 @@ export interface Invoice {
   is_recurring: boolean
   recurring_frequency?: 'weekly' | 'monthly' | 'quarterly' | 'yearly'
   next_recurring_date?: string
+  from_name?: string | null
+  from_address?: string | null
+  from_email?: string | null
+  from_phone?: string | null
   created_at: string
   updated_at: string
 }

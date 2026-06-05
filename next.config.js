@@ -4,10 +4,8 @@ const nextConfig = {
   transpilePackages: ['@hebcal/core'],
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**.supabaseusercontent.com',
-      },
+      { protocol: 'https', hostname: '**.supabase.co' },
+      { protocol: 'https', hostname: '**.supabaseusercontent.com' },
     ],
   },
 }
