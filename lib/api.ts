@@ -20,6 +20,7 @@ export async function createCompany(company: {
   phone?: string
   address?: string
   logo_url?: string | null
+  kind?: string
 }) {
   const { data, error } = await supabase
     .from('companies')

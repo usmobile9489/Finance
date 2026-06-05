@@ -306,17 +306,21 @@ export default function InvoicesPage() {
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-medium text-gray-600">Line Items</label>
                   <div className="flex gap-3 items-center">
-                    {catalogItems.length > 0 && (
+                    {catalogItems.length > 0 ? (
                       <select
                         onChange={e => {
                           const item = catalogItems.find(it => it.id === e.target.value)
                           if (item) {
-                            addLineItem()
                             setLineItems(prev => {
-                              const updated = [...prev]
-                              const last = updated.length - 1
-                              updated[last] = { description: item.name, quantity: 1, unit_price: item.base_price, line_total: item.base_price }
-                              return updated
+                              // fill first empty row, else append
+                              const idx = prev.findIndex(li => !li.description)
+                              const newRow = { description: item.name, quantity: 1, unit_price: item.base_price, line_total: item.base_price }
+                              if (idx >= 0) {
+                                const updated = [...prev]
+                                updated[idx] = newRow
+                                return updated
+                              }
+                              return [...prev, newRow]
                             })
                           }
                           e.target.value = ''
@@ -324,11 +328,13 @@ export default function InvoicesPage() {
                         className="text-xs border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         defaultValue=""
                       >
-                        <option value="">+ From catalog</option>
+                        <option value="">+ Pick from items</option>
                         {catalogItems.map(item => (
                           <option key={item.id} value={item.id}>{item.name} — ${item.base_price}</option>
                         ))}
                       </select>
+                    ) : (
+                      <a href="/admin/items" className="text-xs text-amber-600 hover:text-amber-800 font-medium">No items yet — add items →</a>
                     )}
                     <button type="button" onClick={addLineItem} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">+ Add blank</button>
                   </div>

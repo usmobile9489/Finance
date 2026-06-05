@@ -19,13 +19,17 @@ type KeyingOrder = {
   notes: string | null
   brands_json: BrandItem[]
   total: number
+  cut_keys: boolean
   created_at: string
 }
 
 type BrandItem = {
   brand: string
   condition: string
+  cylinder_type?: string
   keying_option: string
+  key_number?: string
+  chart_name?: string
   quantity: number
   subtotal: number
 }
@@ -52,6 +56,7 @@ export default function KeyingOrdersPage() {
 
   async function loadOrders() {
     setLoading(true)
+    // Show all keying orders (public submissions come in with no company assigned)
     const { data } = await supabase
       .from('keying_orders')
       .select('*')
@@ -190,6 +195,14 @@ export default function KeyingOrdersPage() {
                 </button>
               </div>
 
+              {/* Cut keys badge */}
+              {selected.cut_keys && (
+                <div className="mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 flex items-center gap-2">
+                  <span className="text-lg">✂️</span>
+                  <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">Customer requested key cutting</span>
+                </div>
+              )}
+
               {/* Contact info */}
               <div className="space-y-2 mb-4 text-sm">
                 {[
@@ -210,23 +223,25 @@ export default function KeyingOrdersPage() {
               {/* Brands table */}
               {selected.brands_json?.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Brands</p>
+                  <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Items Ordered</p>
                   <div className="space-y-1.5">
                     {selected.brands_json.map((b, i) => (
                       <div key={i} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2 text-xs">
                         <div className="flex justify-between items-center">
                           <span className="font-semibold text-gray-800 dark:text-gray-200">{b.brand}</span>
-                          <span className="font-bold text-indigo-600 dark:text-indigo-400">{fmt(b.subtotal)}</span>
+                          <span className="text-gray-500 dark:text-gray-400">Qty: {b.quantity}</span>
                         </div>
                         <div className="text-gray-400 dark:text-gray-500 mt-0.5">
-                          {b.condition} · {b.keying_option} · Qty: {b.quantity}
+                          {[b.cylinder_type, b.condition, b.keying_option].filter(Boolean).join(' · ')}
                         </div>
+                        {(b.key_number || b.chart_name) && (
+                          <div className="text-gray-400 dark:text-gray-500 mt-0.5">
+                            {b.key_number && <>Key #: {b.key_number} </>}
+                            {b.chart_name && <>· Chart: {b.chart_name}</>}
+                          </div>
+                        )}
                       </div>
                     ))}
-                  </div>
-                  <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total</span>
-                    <span className="font-bold text-gray-900 dark:text-white">{fmt(selected.total)}</span>
                   </div>
                 </div>
               )}

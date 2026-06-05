@@ -1,3 +1,5 @@
+export type CompanyKind = 'phone' | 'keying' | 'general' | 'personal'
+
 export interface Company {
   id: string
   user_id: string
@@ -6,6 +8,7 @@ export interface Company {
   phone: string
   address: string
   logo_url: string | null
+  kind: CompanyKind
   created_at: string
   updated_at: string
 }

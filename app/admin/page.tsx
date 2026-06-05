@@ -33,6 +33,7 @@ export default function AdminDashboard() {
   const [activeProjects, setActiveProjects] = useState(0)
 
   const [recentTx, setRecentTx] = useState<Array<{ id: string; description: string; amount: number; type: string; company?: string }>>([])
+  const [recentOrders, setRecentOrders] = useState<Array<{ id: string; order_number: string; company_name: string; contact_name: string; status: string; cut_keys: boolean; created_at: string }>>([])
 
   const companyIds = selectedCompanyId === 'all' ? companies.map(c => c.id) : [selectedCompanyId]
 
@@ -48,10 +49,20 @@ export default function AdminDashboard() {
         loadBusinessStats(),
         loadPersonalStats(),
         loadModuleStats(),
+        loadKeyingOrders(),
       ])
     } finally {
       setLoading(false)
     }
+  }
+
+  async function loadKeyingOrders() {
+    const { data } = await supabase
+      .from('keying_orders')
+      .select('id, order_number, company_name, contact_name, status, cut_keys, created_at')
+      .order('created_at', { ascending: false })
+      .limit(6)
+    setRecentOrders((data || []) as typeof recentOrders)
   }
 
   async function loadBusinessStats() {
@@ -243,6 +254,40 @@ export default function AdminDashboard() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Recent Submitted Orders */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900 dark:text-white">Recent Submitted Orders</h3>
+          <Link href="/admin/keying-orders" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">View all →</Link>
+        </div>
+        {loading ? <p className="text-gray-400 dark:text-gray-500 text-sm">Loading...</p>
+          : recentOrders.length === 0 ? (
+            <p className="text-gray-400 dark:text-gray-500 text-sm">No form submissions yet. Share your form links below to start receiving orders.</p>
+          ) : (
+            <div className="space-y-2">
+              {recentOrders.map(o => (
+                <Link key={o.id} href="/admin/keying-orders"
+                  className="flex items-center justify-between py-2 px-2 -mx-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/30 border-b border-gray-50 dark:border-gray-700/50 last:border-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 shrink-0">{o.order_number}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 truncate">{o.company_name || o.contact_name}</span>
+                    {o.cut_keys && <span className="text-xs shrink-0" title="Cut keys requested">✂️</span>}
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${
+                      o.status === 'new' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                      o.status === 'in_progress' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                      o.status === 'complete' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                      'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    }`}>{o.status.replace('_', ' ')}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:block">{new Date(o.created_at).toLocaleDateString()}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
       </div>
 
       {/* Customer-facing Form Links */}

@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { getCompanies, createCompany, updateCompany, uploadCompanyLogo } from '@/lib/api'
-import { Company } from '@/types/database'
+import { Company, CompanyKind } from '@/types/database'
 import type { User } from '@supabase/supabase-js'
 
 // ─── Company Context ──────────────────────────────────────────────────────────
@@ -51,73 +51,123 @@ function useDarkMode() {
   return { dark, toggle }
 }
 
-// ─── Sidebar nav config ───────────────────────────────────────────────────────
-type NavItem = { label: string; href: string; icon: string }
-type NavSection = { section: string; items: NavItem[] }
+// ─── Modules per company kind ─────────────────────────────────────────────────
+type Mod = { label: string; href: string; icon: string }
 
-const NAV: NavSection[] = [
-  {
-    section: 'Overview',
-    items: [
-      { label: 'Dashboard', href: '/admin', icon: '📊' },
-    ],
-  },
-  {
-    section: 'Personal',
-    items: [
-      { label: 'Transactions', href: '/admin/personal', icon: '💳' },
-      { label: 'Categories', href: '/admin/personal/categories', icon: '🏷️' },
-    ],
-  },
-  {
-    section: 'Businesses',
-    items: [
-      { label: 'Phone Buy/Sell', href: '/admin/phone-sales', icon: '📱' },
-      { label: 'Phone Service', href: '/admin/phone-service', icon: '🔧' },
-      { label: 'Phone Rental', href: '/admin/phone-rental', icon: '📲' },
-      { label: 'Locksmith', href: '/admin/locksmith', icon: '🔑' },
-      { label: 'Keying Orders', href: '/admin/keying-orders', icon: '🗝️' },
-    ],
-  },
-  {
-    section: 'Sales',
-    items: [
-      { label: 'Invoices', href: '/admin/invoices', icon: '🧾' },
-      { label: 'Customers', href: '/admin/customers', icon: '👥' },
-      { label: 'Items', href: '/admin/items', icon: '📦' },
-      { label: 'Forms', href: '/admin/forms', icon: '📋' },
-    ],
-  },
-  {
-    section: 'System',
-    items: [
-      { label: 'Reports', href: '/admin/reports', icon: '📈' },
-      { label: 'Settings', href: '/admin/settings', icon: '⚙️' },
-    ],
-  },
-]
+const MODULES_BY_KIND: Record<CompanyKind, Mod[]> = {
+  phone: [
+    { label: 'Buy / Sell', href: '/admin/phone-sales', icon: '📱' },
+    { label: 'Service', href: '/admin/phone-service', icon: '🔧' },
+    { label: 'Rental', href: '/admin/phone-rental', icon: '📲' },
+    { label: 'Contacts', href: '/admin/customers', icon: '👥' },
+    { label: 'Items', href: '/admin/items', icon: '📦' },
+    { label: 'Invoices', href: '/admin/invoices', icon: '🧾' },
+    { label: 'Reports', href: '/admin/reports', icon: '📈' },
+  ],
+  keying: [
+    { label: 'Locks Buy/Sell', href: '/admin/keying-locks', icon: '🔒' },
+    { label: 'Master Key Orders', href: '/admin/keying-orders', icon: '🗝️' },
+    { label: 'Expenses', href: '/admin/keying-expenses', icon: '🧰' },
+    { label: 'Forms', href: '/admin/forms', icon: '📋' },
+    { label: 'Contacts', href: '/admin/customers', icon: '👥' },
+    { label: 'Invoices', href: '/admin/invoices', icon: '🧾' },
+    { label: 'Reports', href: '/admin/reports', icon: '📈' },
+  ],
+  general: [
+    { label: 'Transactions', href: '/admin/transactions', icon: '💰' },
+    { label: 'Contacts', href: '/admin/customers', icon: '👥' },
+    { label: 'Items', href: '/admin/items', icon: '📦' },
+    { label: 'Invoices', href: '/admin/invoices', icon: '🧾' },
+    { label: 'Reports', href: '/admin/reports', icon: '📈' },
+  ],
+  personal: [
+    { label: 'Transactions', href: '/admin/personal', icon: '💳' },
+    { label: 'Categories', href: '/admin/personal/categories', icon: '🏷️' },
+  ],
+}
+
+const KIND_ICON: Record<CompanyKind, string> = {
+  phone: '📱', keying: '🗝️', general: '🏢', personal: '💳',
+}
+
+// ─── Collapsible group ────────────────────────────────────────────────────────
+function CollapsibleGroup({
+  title, icon, isOpen, onToggle, isActive, children,
+}: {
+  title: string; icon: string; isOpen: boolean; onToggle: () => void; isActive: boolean; children: React.ReactNode
+}) {
+  return (
+    <div className="mb-1">
+      <button
+        onClick={onToggle}
+        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+          isActive
+            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+            : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+        }`}
+      >
+        <span className="text-base leading-none">{icon}</span>
+        <span className="flex-1 text-left truncate">{title}</span>
+        <svg className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+      {isOpen && <div className="mt-0.5 ml-3 pl-2 border-l border-gray-200 dark:border-gray-700 space-y-0.5">{children}</div>}
+    </div>
+  )
+}
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
-function Sidebar({ open, onClose, pathname }: { open: boolean; onClose: () => void; pathname: string }) {
+function Sidebar({
+  open, onClose, pathname, companies, selectedCompanyId, onSelectCompany, onAddCompany,
+}: {
+  open: boolean
+  onClose: () => void
+  pathname: string
+  companies: Company[]
+  selectedCompanyId: string
+  onSelectCompany: (id: string) => void
+  onAddCompany: () => void
+}) {
+  // Which group is expanded — default to the selected company (or 'all')
+  const [openGroup, setOpenGroup] = useState<string>(selectedCompanyId)
+  useEffect(() => { setOpenGroup(selectedCompanyId) }, [selectedCompanyId])
+
+  const SubLink = ({ mod, companyId }: { mod: Mod; companyId: string }) => {
+    const isActive = pathname.startsWith(mod.href) && selectedCompanyId === companyId
+    return (
+      <Link
+        href={mod.href}
+        onClick={() => { onSelectCompany(companyId); onClose() }}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+          isActive
+            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium'
+            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
+        }`}
+      >
+        <span className="text-sm leading-none">{mod.icon}</span>
+        <span>{mod.label}</span>
+      </Link>
+    )
+  }
+
+  // Personal company gets shown as its own top-level group; business companies grouped below
+  const personalCompanies = companies.filter(c => c.kind === 'personal')
+  const businessCompanies = companies.filter(c => c.kind !== 'personal')
+
   return (
     <>
-      {/* Mobile overlay */}
-      {open && (
-        <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={onClose} />
-      )}
+      {open && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={onClose} />}
 
-      {/* Sidebar */}
       <aside className={`
-        fixed top-0 left-0 h-full w-56 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800
+        fixed top-0 left-0 h-full w-60 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800
         flex flex-col z-40 transition-transform duration-200
         ${open ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0 lg:static lg:z-auto
       `}>
         {/* Logo */}
         <div className="h-14 flex items-center px-4 border-b border-gray-200 dark:border-gray-800 shrink-0">
-          <Link href="/admin" className="font-bold text-indigo-600 dark:text-indigo-400 text-base">
-            Finance Manager
-          </Link>
+          <Link href="/admin" className="font-bold text-indigo-600 dark:text-indigo-400 text-base">Finance Manager</Link>
           <button onClick={onClose} className="ml-auto lg:hidden text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -127,36 +177,61 @@ function Sidebar({ open, onClose, pathname }: { open: boolean; onClose: () => vo
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
-          {NAV.map(({ section, items }) => (
-            <div key={section} className="mb-4">
-              <p className="px-3 mb-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                {section}
-              </p>
-              {items.map(item => {
-                const isActive = item.href === '/admin'
-                  ? pathname === '/admin'
-                  : pathname.startsWith(item.href)
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onClose}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
-                      isActive
-                        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
-                    }`}
-                  >
-                    <span className="text-base leading-none">{item.icon}</span>
-                    <span>{item.label}</span>
-                  </Link>
-                )
-              })}
-            </div>
+          {/* ALL group */}
+          <CollapsibleGroup
+            title="All Companies" icon="🗂️"
+            isOpen={openGroup === 'all'}
+            onToggle={() => setOpenGroup(openGroup === 'all' ? '' : 'all')}
+            isActive={selectedCompanyId === 'all'}
+          >
+            <Link href="/admin" onClick={() => { onSelectCompany('all'); onClose() }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${pathname === '/admin' && selectedCompanyId === 'all' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+              <span>📊</span><span>Dashboard</span>
+            </Link>
+            <Link href="/admin/reports" onClick={() => { onSelectCompany('all'); onClose() }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${pathname.startsWith('/admin/reports') && selectedCompanyId === 'all' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+              <span>📈</span><span>Reports</span>
+            </Link>
+            <button onClick={() => { onAddCompany(); onClose() }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              <span>➕</span><span>Add a Company</span>
+            </button>
+            <Link href="/admin/settings" onClick={onClose}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${pathname.startsWith('/admin/settings') ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+              <span>⚙️</span><span>Settings</span>
+            </Link>
+          </CollapsibleGroup>
+
+          {/* Personal */}
+          {personalCompanies.map(c => (
+            <CollapsibleGroup key={c.id}
+              title={c.name} icon={KIND_ICON.personal}
+              isOpen={openGroup === c.id}
+              onToggle={() => setOpenGroup(openGroup === c.id ? '' : c.id)}
+              isActive={selectedCompanyId === c.id}
+            >
+              {MODULES_BY_KIND.personal.map(m => <SubLink key={m.href} mod={m} companyId={c.id} />)}
+            </CollapsibleGroup>
+          ))}
+
+          {/* Divider */}
+          {businessCompanies.length > 0 && (
+            <p className="px-3 mt-3 mb-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Businesses</p>
+          )}
+
+          {/* Business companies */}
+          {businessCompanies.map(c => (
+            <CollapsibleGroup key={c.id}
+              title={c.name} icon={KIND_ICON[c.kind] || '🏢'}
+              isOpen={openGroup === c.id}
+              onToggle={() => setOpenGroup(openGroup === c.id ? '' : c.id)}
+              isActive={selectedCompanyId === c.id}
+            >
+              {(MODULES_BY_KIND[c.kind] || MODULES_BY_KIND.general).map(m => <SubLink key={m.href} mod={m} companyId={c.id} />)}
+            </CollapsibleGroup>
           ))}
         </nav>
 
-        {/* Version */}
         <div className="p-3 border-t border-gray-200 dark:border-gray-800 shrink-0">
           <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Finance Manager v1.0</p>
         </div>
@@ -175,7 +250,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [showCreateCompany, setShowCreateCompany] = useState(false)
   const [showEditCompany, setShowEditCompany] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [newCompany, setNewCompany] = useState({ name: '', email: '', phone: '', address: '' })
+  const [newCompany, setNewCompany] = useState({ name: '', email: '', phone: '', address: '', kind: 'general' as CompanyKind })
   const [editCompany, setEditCompany] = useState<Company | null>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [editLogoFile, setEditLogoFile] = useState<File | null>(null)
@@ -192,9 +267,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const savedId = typeof window !== 'undefined' ? localStorage.getItem('selectedCompanyId') : null
     if (savedId && (savedId === 'all' || data.find(c => c.id === savedId))) {
       setSelectedCompanyIdState(savedId)
-    } else if (data.length > 0) {
-      setSelectedCompanyIdState(data[0].id)
-      localStorage.setItem('selectedCompanyId', data[0].id)
     }
     return data
   }, [])
@@ -244,7 +316,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       setCompanies(prev => [...prev, finalCompany])
       handleSetSelectedCompanyId(finalCompany.id)
       setShowCreateCompany(false)
-      setNewCompany({ name: '', email: '', phone: '', address: '' })
+      setNewCompany({ name: '', email: '', phone: '', address: '', kind: 'general' })
       setLogoFile(null)
     } catch (err: unknown) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create company')
@@ -263,7 +335,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       if (editLogoFile) logoUrl = await uploadCompanyLogo(editCompany.id, editLogoFile)
       const updated = await updateCompany(editCompany.id, {
         name: editCompany.name, email: editCompany.email, phone: editCompany.phone,
-        address: editCompany.address, logo_url: logoUrl,
+        address: editCompany.address, logo_url: logoUrl, kind: editCompany.kind,
       })
       setCompanies(cs => cs.map(c => c.id === updated.id ? updated : c))
       setShowEditCompany(false)
@@ -291,17 +363,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <CompanyContext.Provider value={{ selectedCompanyId, setSelectedCompanyId: handleSetSelectedCompanyId, companies, refreshCompanies, user, selectedCompany }}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex">
+        <Sidebar
+          open={sidebarOpen} onClose={() => setSidebarOpen(false)} pathname={pathname}
+          companies={companies} selectedCompanyId={selectedCompanyId}
+          onSelectCompany={handleSetSelectedCompanyId}
+          onAddCompany={() => { setShowCreateCompany(true); setCreateError(null) }}
+        />
 
-        {/* Sidebar */}
-        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} pathname={pathname} />
-
-        {/* Right side: topbar + content */}
         <div className="flex-1 flex flex-col min-w-0">
-
           {/* Top bar */}
           <header className="h-14 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center px-4 gap-3 sticky top-0 z-20 shrink-0">
-
-            {/* Mobile hamburger */}
             <button onClick={() => setSidebarOpen(true)}
               className="lg:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 shrink-0">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -309,29 +380,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </svg>
             </button>
 
-            {/* Company selector */}
-            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            {/* Current scope label */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
               {selectedCompany?.logo_url && (
-                <Image src={selectedCompany.logo_url} alt={selectedCompany.name} width={22} height={22} className="rounded object-contain shrink-0" />
+                <Image src={selectedCompany.logo_url} alt={selectedCompany.name} width={24} height={24} className="rounded object-contain shrink-0" />
               )}
-              <select
-                value={selectedCompanyId}
-                onChange={e => handleSetSelectedCompanyId(e.target.value)}
-                className="border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-44"
-              >
-                <option value="all">All Companies</option>
-                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">
+                {selectedCompanyId === 'all' ? 'All Companies' : (selectedCompany?.name ?? '')}
+              </span>
               {selectedCompany && (
                 <button onClick={() => { setEditCompany(selectedCompany); setCreateError(null); setShowEditCompany(true) }}
                   className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 px-1.5 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 shrink-0">
                   Edit
                 </button>
               )}
-              <button onClick={() => { setShowCreateCompany(true); setCreateError(null) }}
-                className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2.5 py-1.5 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 font-medium shrink-0">
-                + Company
-              </button>
             </div>
 
             {/* Right controls */}
@@ -353,9 +415,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <button onClick={() => setShowUserMenu(o => !o)}
                   className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                      {user?.email?.charAt(0).toUpperCase()}
-                    </span>
+                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{user?.email?.charAt(0).toUpperCase()}</span>
                   </div>
                   <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -376,7 +436,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </header>
 
-          {/* No companies banner */}
           {companies.length === 0 && (
             <div className="p-6">
               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-8 text-center">
@@ -389,13 +448,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           )}
 
-          {/* Main content */}
-          {companies.length > 0 && (
-            <main className="flex-1 p-6 overflow-auto">{children}</main>
-          )}
+          {companies.length > 0 && <main className="flex-1 p-6 overflow-auto">{children}</main>}
         </div>
 
-        {/* ── Create Company Modal ───────────────────────────────────────── */}
+        {/* Create Company Modal */}
         {showCreateCompany && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6">
@@ -405,6 +461,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <input type="text" placeholder="Company name *" required value={newCompany.name}
                   onChange={e => setNewCompany({ ...newCompany, name: e.target.value })}
                   className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Business Type *</label>
+                  <select value={newCompany.kind} onChange={e => setNewCompany({ ...newCompany, kind: e.target.value as CompanyKind })}
+                    className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="general">General Business</option>
+                    <option value="phone">Phone Business</option>
+                    <option value="keying">Keying / Locksmith</option>
+                    <option value="personal">Personal</option>
+                  </select>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Determines which tools show for this company.</p>
+                </div>
                 <input type="email" placeholder="Email" value={newCompany.email}
                   onChange={e => setNewCompany({ ...newCompany, email: e.target.value })}
                   className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -415,7 +482,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   onChange={e => setNewCompany({ ...newCompany, address: e.target.value })}
                   rows={2} className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Company Logo</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Company Logo (shows on invoices)</label>
                   <input type="file" accept="image/*" onChange={e => setLogoFile(e.target.files?.[0] ?? null)}
                     className="w-full text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
                 </div>
@@ -433,7 +500,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         )}
 
-        {/* ── Edit Company Modal ─────────────────────────────────────────── */}
+        {/* Edit Company Modal */}
         {showEditCompany && editCompany && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6">
@@ -443,6 +510,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <input type="text" placeholder="Company name *" required value={editCompany.name}
                   onChange={e => setEditCompany({ ...editCompany, name: e.target.value })}
                   className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Business Type</label>
+                  <select value={editCompany.kind} onChange={e => setEditCompany({ ...editCompany, kind: e.target.value as CompanyKind })}
+                    className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="general">General Business</option>
+                    <option value="phone">Phone Business</option>
+                    <option value="keying">Keying / Locksmith</option>
+                    <option value="personal">Personal</option>
+                  </select>
+                </div>
                 <input type="email" placeholder="Email" value={editCompany.email || ''}
                   onChange={e => setEditCompany({ ...editCompany, email: e.target.value })}
                   className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
