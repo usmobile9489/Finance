@@ -34,6 +34,7 @@ export default function InvoicesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewInvoice, setPreviewInvoice] = useState<InvoiceWithContact | null>(null)
+  const [infoInvoice, setInfoInvoice] = useState<InvoiceWithContact | null>(null)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -104,7 +105,7 @@ export default function InvoicesPage() {
     })
     const its = (inv.invoice_items || []) as InvoiceItem[]
     setLineItems(its.length > 0
-      ? its.map(it => ({ description: it.description || '', quantity: it.quantity, unit_price: it.unit_price, line_total: it.line_total }))
+      ? its.map(it => ({ description: it.description || '', quantity: it.quantity, unit_price: it.unit_price, line_total: it.line_total, cost: Number(it.cost) || 0 }))
       : [{ description: '', quantity: 1, unit_price: 0, line_total: 0 }])
     setError(null)
     setShowModal(true)
@@ -144,7 +145,7 @@ export default function InvoicesPage() {
     const payload = {
       company_id: companyId, contact_id: form.contact_id, invoice_number: form.invoice_number,
       issue_date: form.issue_date, due_date: form.due_date || form.issue_date,
-      subtotal, tax: taxAmount, total, cost: parseFloat(form.cost) || 0, status: form.status, notes: form.notes || null,
+      subtotal, tax: taxAmount, total, cost: itemsCost, status: form.status, notes: form.notes || null,
       is_recurring: form.is_recurring,
       recurring_frequency: form.is_recurring ? form.recurring_frequency : undefined,
       from_name: form.from_name || null, from_address: form.from_address || null,
@@ -229,21 +230,17 @@ export default function InvoicesPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    {['Invoice #', 'Customer', 'Total', 'Cost', 'Profit', 'Status (internal)', 'Actions'].map(h => (
+                    {['Invoice #', 'Customer', 'Total', 'Status (internal)', 'Actions'].map(h => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                  {invoices.map(inv => {
-                    const profit = Number(inv.total) - Number(inv.cost || 0)
-                    return (
+                  {invoices.map(inv => (
                     <tr key={inv.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                       <td className="px-5 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{inv.invoice_number}</td>
                       <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-400">{inv.contacts?.name || '—'}</td>
                       <td className="px-5 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{fmt(inv.total)}</td>
-                      <td className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">{Number(inv.cost) > 0 ? fmt(inv.cost) : '—'}</td>
-                      <td className={`px-5 py-4 text-sm font-semibold ${profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{fmt(profit)}</td>
                       <td className="px-5 py-4 text-sm">
                         <select value={inv.status} onChange={e => handleStatusChange(inv.id, e.target.value as typeof STATUS_OPTIONS[number])}
                           className={`px-2 py-1 rounded-full text-xs font-semibold border-0 cursor-pointer ${STATUS_COLORS[inv.status] || ''}`}>
@@ -253,10 +250,11 @@ export default function InvoicesPage() {
                       <td className="px-5 py-4 text-sm flex gap-3 flex-wrap items-center">
                         <button onClick={() => setPreviewInvoice(inv)} className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">Print</button>
                         <button onClick={() => openEdit(inv)} className="text-gray-600 dark:text-gray-300 hover:underline font-medium">Edit</button>
+                        <button onClick={() => setInfoInvoice(inv)} className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium">Profit</button>
                         <button onClick={() => handleDelete(inv.id)} className="text-red-500 hover:text-red-700 font-medium">Delete</button>
                       </td>
                     </tr>
-                  )})}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -365,14 +363,13 @@ export default function InvoicesPage() {
                 <div className="flex justify-between text-sm font-bold border-t border-gray-200 dark:border-gray-600 pt-2">
                   <span className="text-gray-900 dark:text-white">Total (customer pays)</span><span className="text-indigo-600 dark:text-indigo-400">{fmt(total)}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm pt-2 border-t border-gray-200 dark:border-gray-600">
-                  <span className="text-gray-600 dark:text-gray-400">Your cost <span className="text-xs text-gray-400">{itemsCost > 0 ? '(auto-filled from item costs — editable)' : '(materials/goods — not shown to customer)'}</span></span>
-                  <input type="number" min="0" step="0.01" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })}
-                    className="w-24 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+                <div className="flex justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-600">
+                  <span className="text-gray-500 dark:text-gray-400">Your cost <span className="text-xs text-gray-400">(auto from item cost prices)</span></span>
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">{fmt(itemsCost)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-semibold">
                   <span className="text-gray-700 dark:text-gray-300">Your profit</span>
-                  <span className={total - (parseFloat(form.cost) || 0) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{fmt(total - (parseFloat(form.cost) || 0))}</span>
+                  <span className={total - itemsCost >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{fmt(total - itemsCost)}</span>
                 </div>
               </div>
 
@@ -497,6 +494,34 @@ export default function InvoicesPage() {
           </div>
         </div>
       )}
+
+      {/* Profit Info modal (internal — never on the invoice) */}
+      {infoInvoice && (() => {
+        const cost = Number(infoInvoice.cost || 0)
+        const total = Number(infoInvoice.total)
+        const profit = total - cost
+        const margin = total > 0 ? (profit / total * 100) : 0
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4" onClick={() => setInfoInvoice(null)}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xs p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{infoInvoice.invoice_number}</h3>
+                <button onClick={() => setInfoInvoice(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+              </div>
+              <div className="space-y-2.5">
+                <div className="flex justify-between text-sm"><span className="text-gray-500 dark:text-gray-400">Total (customer)</span><span className="font-semibold text-gray-900 dark:text-gray-100">{fmt(total)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500 dark:text-gray-400">Your cost</span><span className="font-medium text-red-600 dark:text-red-400">{fmt(cost)}</span></div>
+                <div className="flex justify-between text-base font-bold border-t border-gray-100 dark:border-gray-700 pt-2.5">
+                  <span className="text-gray-900 dark:text-white">Profit</span>
+                  <span className={profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{fmt(profit)}</span>
+                </div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-right">{margin.toFixed(1)}% margin</p>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">This is internal only — it never appears on the customer&apos;s invoice. Cost comes from the item purchase prices.</p>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

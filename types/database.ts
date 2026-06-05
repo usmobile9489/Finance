@@ -86,6 +86,7 @@ export interface InvoiceItem {
   quantity: number
   unit_price: number
   line_total: number
+  cost?: number
 }
 
 export interface Invoice {

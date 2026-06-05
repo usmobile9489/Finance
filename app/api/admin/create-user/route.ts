@@ -22,17 +22,25 @@ export async function POST(req: NextRequest) {
   if (authErr || !user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   // 2) Parse input
-  let body: { email?: string; password?: string }
+  let body: { email?: string; password?: string; mode?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }) }
   const email = (body.email || '').trim()
   const password = body.password || ''
+  const mode = body.mode === 'member' ? 'member' : 'tenant'
   if (!email || !email.includes('@')) return NextResponse.json({ error: 'Valid email required' }, { status: 400 })
   if (password.length < 6) return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
 
   // 3) Create the user with the service-role client (bypasses disabled signup)
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
-  const { error } = await admin.auth.admin.createUser({ email, password, email_confirm: true })
+  const { data: created, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  return NextResponse.json({ ok: true })
+  // 4) If "member", link the new user to the caller's account (shared workspace).
+  //    "tenant" leaves them isolated with their own empty workspace.
+  if (mode === 'member' && created?.user?.id) {
+    const { error: linkErr } = await admin.from('account_members').insert({ owner_id: user.id, member_id: created.user.id })
+    if (linkErr) return NextResponse.json({ error: 'User created but linking failed: ' + linkErr.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true, mode })
 }

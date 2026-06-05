@@ -57,7 +57,7 @@ export default function SettingsPage() {
   }
 
   // ── Add login user ──
-  const [newUser, setNewUser] = useState({ email: '', password: '' })
+  const [newUser, setNewUser] = useState({ email: '', password: '', mode: 'member' as 'member' | 'tenant' })
   const [userSaving, setUserSaving] = useState(false)
   const [userMsg, setUserMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
@@ -73,8 +73,10 @@ export default function SettingsPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to create user')
-      setUserMsg({ ok: true, text: `User ${newUser.email} created. They can now log in.` })
-      setNewUser({ email: '', password: '' })
+      setUserMsg({ ok: true, text: newUser.mode === 'member'
+        ? `${newUser.email} added to your account — they share your companies & data.`
+        : `${newUser.email} created as a separate account with their own empty workspace.` })
+      setNewUser({ email: '', password: '', mode: 'member' })
     } catch (err: unknown) {
       setUserMsg({ ok: false, text: err instanceof Error ? err.message : 'Failed' })
     } finally { setUserSaving(false) }
@@ -171,22 +173,37 @@ export default function SettingsPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mt-8">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Login Users</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Public sign-up is <b>disabled</b> — no one can create an account on their own. Use this to add another login when you need to (e.g. an employee). They get access to <b>your</b> companies and data.
+          Public sign-up is <b>disabled</b>. Create logins here when you need to.
         </p>
         {userMsg && (
           <div className={`px-4 py-3 rounded-lg mb-4 text-sm ${userMsg.ok ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>{userMsg.text}</div>
         )}
-        <form onSubmit={handleAddUser} className="flex flex-col sm:flex-row gap-3">
-          <input type="email" required placeholder="Email" value={newUser.email}
-            onChange={e => setNewUser({ ...newUser, email: e.target.value })}
-            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          <input type="text" required placeholder="Temp password (min 6)" value={newUser.password}
-            onChange={e => setNewUser({ ...newUser, password: e.target.value })}
-            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          <button type="submit" disabled={userSaving}
-            className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium whitespace-nowrap">
-            {userSaving ? 'Adding...' : 'Add User'}
-          </button>
+        <form onSubmit={handleAddUser} className="space-y-3">
+          {/* Mode choice */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button type="button" onClick={() => setNewUser({ ...newUser, mode: 'member' })}
+              className={`text-left p-3 rounded-lg border-2 transition-colors ${newUser.mode === 'member' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'}`}>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">👥 User on my account</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Shares your companies & data (e.g. an employee/partner).</p>
+            </button>
+            <button type="button" onClick={() => setNewUser({ ...newUser, mode: 'tenant' })}
+              className={`text-left p-3 rounded-lg border-2 transition-colors ${newUser.mode === 'tenant' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'}`}>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">🏢 Separate tenant</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Brand-new isolated account — their own empty workspace, can&apos;t see your data.</p>
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input type="email" required placeholder="Email" value={newUser.email}
+              onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+              className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <input type="text" required placeholder="Temp password (min 6)" value={newUser.password}
+              onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+              className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <button type="submit" disabled={userSaving}
+              className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium whitespace-nowrap">
+              {userSaving ? 'Adding...' : 'Create Login'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

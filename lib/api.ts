@@ -216,7 +216,7 @@ export async function getInvoices(companyId: string) {
 
 export async function createInvoice(
   invoice: Omit<Invoice, 'id' | 'created_at' | 'updated_at'>,
-  lineItems: Array<{ description: string; quantity: number; unit_price: number; line_total: number; item_id?: string | null }>
+  lineItems: Array<{ description: string; quantity: number; unit_price: number; line_total: number; cost?: number; item_id?: string | null }>
 ) {
   const { data: inv, error } = await supabase
     .from('invoices')
@@ -249,7 +249,7 @@ export async function updateInvoice(id: string, updates: Partial<Invoice>) {
 export async function updateInvoiceWithItems(
   id: string,
   updates: Partial<Invoice>,
-  lineItems: Array<{ description: string; quantity: number; unit_price: number; line_total: number }>
+  lineItems: Array<{ description: string; quantity: number; unit_price: number; line_total: number; cost?: number }>
 ) {
   const { data, error } = await supabase.from('invoices').update(updates).eq('id', id).select().single()
   if (error) throw error
