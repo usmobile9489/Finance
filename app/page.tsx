@@ -9,11 +9,8 @@ export default function Home() {
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-indigo-600">Finance Platform</h1>
           <div className="flex gap-3">
-            <Link href="/auth/login" className="text-gray-600 hover:text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-100 text-sm font-medium">
-              Login
-            </Link>
-            <Link href="/auth/signup" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium">
-              Sign Up
+            <Link href="/auth/login" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium">
+              Sign In
             </Link>
           </div>
         </nav>
@@ -29,10 +26,7 @@ export default function Home() {
             Track income and expenses, create professional invoices, manage contacts, and analyze your business across multiple companies.
           </p>
           <div className="flex justify-center gap-4">
-            <Link href="/auth/signup" className="bg-indigo-600 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-indigo-700 transition-colors">
-              Get Started Free
-            </Link>
-            <Link href="/auth/login" className="bg-white text-indigo-600 border border-indigo-600 px-8 py-3 rounded-lg text-lg font-semibold hover:bg-indigo-50 transition-colors">
+            <Link href="/auth/login" className="bg-indigo-600 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-indigo-700 transition-colors">
               Sign In
             </Link>
           </div>

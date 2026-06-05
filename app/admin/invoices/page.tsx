@@ -11,6 +11,7 @@ interface LineItem {
   quantity: number
   unit_price: number
   line_total: number
+  cost?: number // per-unit purchase cost, pulled from the catalog item
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -72,6 +73,13 @@ export default function InvoicesPage() {
 
   useEffect(() => { load() }, [selectedCompanyId])
 
+  // When catalog items with a purchase cost are added, auto-fill the invoice cost
+  useEffect(() => {
+    if (!showModal) return
+    if (itemsCost > 0) setForm(f => ({ ...f, cost: itemsCost.toFixed(2) }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsCost, showModal])
+
   const generateInvoiceNumber = () => {
     const d = new Date()
     return `INV-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
@@ -125,6 +133,8 @@ export default function InvoicesPage() {
   const subtotal = lineItems.reduce((s, li) => s + li.line_total, 0)
   const taxAmount = (subtotal * parseFloat(form.tax || '0')) / 100
   const total = subtotal + taxAmount
+  // Auto cost from catalog item purchase prices × quantity
+  const itemsCost = lineItems.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0)
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -313,7 +323,7 @@ export default function InvoicesPage() {
                           const item = catalogItems.find(it => it.id === e.target.value)
                           if (item) setLineItems(prev => {
                             const idx = prev.findIndex(li => !li.description)
-                            const row = { description: item.name, quantity: 1, unit_price: item.base_price, line_total: item.base_price }
+                            const row = { description: item.name, quantity: 1, unit_price: item.base_price, line_total: item.base_price, cost: Number(item.cost_price) || 0 }
                             if (idx >= 0) { const u = [...prev]; u[idx] = row; return u }
                             return [...prev, row]
                           })
@@ -321,7 +331,7 @@ export default function InvoicesPage() {
                         }}
                         className="text-xs border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg px-2 py-1 focus:outline-none" defaultValue="">
                         <option value="">+ Pick from items</option>
-                        {catalogItems.map(item => <option key={item.id} value={item.id}>{item.name} — ${item.base_price}</option>)}
+                        {catalogItems.map(item => <option key={item.id} value={item.id}>{item.name} — sell ${item.base_price}{item.cost_price ? ` / cost $${item.cost_price}` : ''}</option>)}
                       </select>
                     ) : (
                       <a href="/admin/items" className="text-xs text-amber-600 hover:underline font-medium">No items — add some →</a>
@@ -356,7 +366,7 @@ export default function InvoicesPage() {
                   <span className="text-gray-900 dark:text-white">Total (customer pays)</span><span className="text-indigo-600 dark:text-indigo-400">{fmt(total)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm pt-2 border-t border-gray-200 dark:border-gray-600">
-                  <span className="text-gray-600 dark:text-gray-400">Your cost <span className="text-xs text-gray-400">(materials/goods — not shown to customer)</span></span>
+                  <span className="text-gray-600 dark:text-gray-400">Your cost <span className="text-xs text-gray-400">{itemsCost > 0 ? '(auto-filled from item costs — editable)' : '(materials/goods — not shown to customer)'}</span></span>
                   <input type="number" min="0" step="0.01" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })}
                     className="w-24 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-indigo-500" />
                 </div>
