@@ -73,13 +73,6 @@ export default function InvoicesPage() {
 
   useEffect(() => { load() }, [selectedCompanyId])
 
-  // When catalog items with a purchase cost are added, auto-fill the invoice cost
-  useEffect(() => {
-    if (!showModal) return
-    if (itemsCost > 0) setForm(f => ({ ...f, cost: itemsCost.toFixed(2) }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemsCost, showModal])
-
   const generateInvoiceNumber = () => {
     const d = new Date()
     return `INV-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`
@@ -135,6 +128,13 @@ export default function InvoicesPage() {
   const total = subtotal + taxAmount
   // Auto cost from catalog item purchase prices × quantity
   const itemsCost = lineItems.reduce((s, li) => s + (Number(li.cost) || 0) * (Number(li.quantity) || 0), 0)
+
+  // When catalog items with a purchase cost are added, auto-fill the invoice cost
+  useEffect(() => {
+    if (!showModal) return
+    if (itemsCost > 0) setForm(f => ({ ...f, cost: itemsCost.toFixed(2) }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsCost, showModal])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
