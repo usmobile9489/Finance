@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useContext } from 'react'
 import { CompanyContext } from '../layout'
-import { getContacts, createContact, deleteContact } from '@/lib/api'
+import { getContacts, createContact, updateContact, deleteContact } from '@/lib/api'
 import { Contact } from '@/types/database'
 
 export default function CustomersPage() {
@@ -15,9 +15,24 @@ export default function CustomersPage() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: '', email: '', phone: '', address: '', notes: '', contact_type: 'customer' as 'customer' | 'vendor',
   })
+
+  function openAdd() {
+    setEditingId(null)
+    setForm({ name: '', email: '', phone: '', address: '', notes: '', contact_type: 'customer' })
+    setError(null)
+    setShowForm(true)
+  }
+
+  function openEdit(c: Contact) {
+    setEditingId(c.id)
+    setForm({ name: c.name, email: c.email || '', phone: c.phone || '', address: c.address || '', notes: c.notes || '', contact_type: c.contact_type })
+    setError(null)
+    setShowForm(true)
+  }
 
   const companyIds = selectedCompanyId === 'all' ? companies.map(c => c.id) : [selectedCompanyId]
 
@@ -38,10 +53,17 @@ export default function CustomersPage() {
     setSaving(true)
     setError(null)
     try {
-      const companyId = selectedCompanyId === 'all' ? companies[0].id : selectedCompanyId
-      const contact = await createContact({ ...form, company_id: companyId })
-      setContacts(prev => [...prev, contact])
+      if (editingId) {
+        const updated = await updateContact(editingId, { ...form })
+        setContacts(prev => prev.map(c => c.id === editingId ? updated : c))
+        if (selectedContact?.id === editingId) setSelectedContact(updated)
+      } else {
+        const companyId = selectedCompanyId === 'all' ? companies[0].id : selectedCompanyId
+        const contact = await createContact({ ...form, company_id: companyId })
+        setContacts(prev => [...prev, contact])
+      }
       setShowForm(false)
+      setEditingId(null)
       setForm({ name: '', email: '', phone: '', address: '', notes: '', contact_type: 'customer' })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save contact')
@@ -72,7 +94,7 @@ export default function CustomersPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Customers</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Manage customers and vendors</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
+        <button onClick={openAdd} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
           + Add Contact
         </button>
       </div>
@@ -111,7 +133,7 @@ export default function CustomersPage() {
             : filtered.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="text-gray-400 dark:text-gray-500 mb-3">No contacts found.</p>
-                <button onClick={() => setShowForm(true)} className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">+ Add first contact</button>
+                <button onClick={openAdd} className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">+ Add first contact</button>
               </div>
             ) : (
               <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
@@ -158,9 +180,15 @@ export default function CustomersPage() {
                     </span>
                   </div>
                 </div>
-                <button onClick={() => handleDelete(selectedContact.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => openEdit(selectedContact)} title="Edit"
+                    className="text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-1">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  </button>
+                  <button onClick={() => handleDelete(selectedContact.id)} title="Delete" className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                </div>
               </div>
               <div className="space-y-3">
                 {[
@@ -187,7 +215,7 @@ export default function CustomersPage() {
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add Contact</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{editingId ? 'Edit Contact' : 'Add Contact'}</h2>
             {error && <p className="text-red-600 text-sm mb-3 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
             <form onSubmit={handleSave} className="space-y-3">
               <div className="flex gap-2">

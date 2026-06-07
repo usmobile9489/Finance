@@ -103,6 +103,7 @@ export default function AdminDashboard() {
 
   const isAll = selectedCompanyId === 'all'
   const focused = !isAll ? perCompany.find(p => p.company.id === selectedCompanyId) : null
+  const hasKeying = companies.some(c => c.kind === 'keying')
 
   // Grand totals
   const grand = perCompany.reduce((acc, p) => ({
@@ -183,7 +184,8 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Recent submitted orders */}
+      {/* Recent submitted orders — only for accounts with a keying business */}
+      {hasKeying && (
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900 dark:text-white">Recent Submitted Orders</h3>
@@ -215,8 +217,10 @@ export default function AdminDashboard() {
             </div>
           )}
       </div>
+      )}
 
-      {/* Customer-facing Form Links */}
+      {/* Customer-facing Form Links — only for accounts with a keying business */}
+      {hasKeying && (
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900 dark:text-white">Customer Form Links</h3>
@@ -243,6 +247,7 @@ export default function AdminDashboard() {
           })}
         </div>
       </div>
+      )}
     </div>
   )
 }
