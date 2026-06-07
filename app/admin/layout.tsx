@@ -79,6 +79,7 @@ const MODULES_BY_KIND: Record<CompanyKind, Mod[]> = {
     { label: 'Contacts', href: '/admin/customers', icon: '👥' },
     { label: 'Items', href: '/admin/items', icon: '📦' },
     { label: 'Invoices', href: '/admin/invoices', icon: '🧾' },
+    { label: 'Forms', href: '/admin/forms', icon: '📋' },
     { label: 'Reports', href: '/admin/reports', icon: '📈' },
   ],
   personal: [
@@ -466,12 +467,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Business Type *</label>
                   <select value={newCompany.kind} onChange={e => setNewCompany({ ...newCompany, kind: e.target.value as CompanyKind })}
                     className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="general">General Business</option>
-                    <option value="phone">Phone Business</option>
-                    <option value="keying">Keying / Locksmith</option>
+                    <option value="general">Business</option>
                     <option value="personal">Personal</option>
                   </select>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Determines which tools show for this company.</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Business gives you transactions, contacts, items, invoices, forms & reports.</p>
                 </div>
                 <input type="email" placeholder="Email" value={newCompany.email}
                   onChange={e => setNewCompany({ ...newCompany, email: e.target.value })}

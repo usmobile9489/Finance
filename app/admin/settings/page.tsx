@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useContext } from 'react'
+import { useState, useEffect, useContext } from 'react'
 import Image from 'next/image'
 import { CompanyContext } from '../layout'
 import { updateCompany, uploadCompanyLogo } from '@/lib/api'
@@ -57,9 +57,18 @@ export default function SettingsPage() {
   }
 
   // ── Add login user ──
+  const { user } = useContext(CompanyContext)
+  const [isMember, setIsMember] = useState(false)
   const [newUser, setNewUser] = useState({ email: '', password: '', mode: 'member' as 'member' | 'tenant' })
   const [userSaving, setUserSaving] = useState(false)
   const [userMsg, setUserMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Detect whether the current user is a sub-user (member of someone else's account)
+  useEffect(() => {
+    if (!user) return
+    supabase.from('account_members').select('owner_id').eq('member_id', user.id).maybeSingle()
+      .then(({ data }) => setIsMember(!!data))
+  }, [user])
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -180,17 +189,19 @@ export default function SettingsPage() {
         )}
         <form onSubmit={handleAddUser} className="space-y-3">
           {/* Mode choice */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className={`grid grid-cols-1 ${isMember ? '' : 'sm:grid-cols-2'} gap-3`}>
             <button type="button" onClick={() => setNewUser({ ...newUser, mode: 'member' })}
               className={`text-left p-3 rounded-lg border-2 transition-colors ${newUser.mode === 'member' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'}`}>
               <p className="text-sm font-semibold text-gray-900 dark:text-white">👥 User on my account</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Shares your companies & data (e.g. an employee/partner).</p>
             </button>
-            <button type="button" onClick={() => setNewUser({ ...newUser, mode: 'tenant' })}
-              className={`text-left p-3 rounded-lg border-2 transition-colors ${newUser.mode === 'tenant' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'}`}>
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">🏢 Separate tenant</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Brand-new isolated account — their own empty workspace, can&apos;t see your data.</p>
-            </button>
+            {!isMember && (
+              <button type="button" onClick={() => setNewUser({ ...newUser, mode: 'tenant' })}
+                className={`text-left p-3 rounded-lg border-2 transition-colors ${newUser.mode === 'tenant' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'}`}>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">🏢 Separate tenant</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Brand-new isolated account — their own empty workspace, can&apos;t see your data.</p>
+              </button>
+            )}
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <input type="email" required placeholder="Email" value={newUser.email}

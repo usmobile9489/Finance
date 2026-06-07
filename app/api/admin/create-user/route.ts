@@ -30,15 +30,27 @@ export async function POST(req: NextRequest) {
   if (!email || !email.includes('@')) return NextResponse.json({ error: 'Valid email required' }, { status: 400 })
   if (password.length < 6) return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
 
-  // 3) Create the user with the service-role client (bypasses disabled signup)
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+
+  // 3) Figure out the caller's account. If the caller is themselves a member of
+  //    someone else's account, they may ONLY add more members to that same
+  //    account — they cannot spin up separate tenants.
+  const { data: membership } = await admin
+    .from('account_members').select('owner_id').eq('member_id', user.id).maybeSingle()
+  const isMember = !!membership
+  const accountOwnerId = membership?.owner_id || user.id
+  if (mode === 'tenant' && isMember) {
+    return NextResponse.json({ error: 'Only the account owner can create a separate account.' }, { status: 403 })
+  }
+
+  // 4) Create the user (service-role bypasses disabled signup)
   const { data: created, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  // 4) If "member", link the new user to the caller's account (shared workspace).
-  //    "tenant" leaves them isolated with their own empty workspace.
+  // 5) "member" → link to the caller's account owner (shared workspace).
+  //    "tenant" → leave isolated with their own empty workspace.
   if (mode === 'member' && created?.user?.id) {
-    const { error: linkErr } = await admin.from('account_members').insert({ owner_id: user.id, member_id: created.user.id })
+    const { error: linkErr } = await admin.from('account_members').insert({ owner_id: accountOwnerId, member_id: created.user.id })
     if (linkErr) return NextResponse.json({ error: 'User created but linking failed: ' + linkErr.message }, { status: 500 })
   }
 
