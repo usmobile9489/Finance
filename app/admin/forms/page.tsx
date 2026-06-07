@@ -122,11 +122,20 @@ export default function FormsPage() {
                 {f.description && <p className="text-sm text-gray-500 mb-3 line-clamp-2">{f.description}</p>}
                 <p className="text-xs text-gray-400 mb-3">{(f.fields || []).length} field{(f.fields || []).length !== 1 ? 's' : ''}</p>
 
-                {f.is_published && (
-                  <div className="bg-indigo-50 rounded-lg px-3 py-2 mb-3 flex items-center gap-2">
-                    <span className="text-xs text-indigo-700 truncate flex-1">{publicUrl(f)}</span>
-                    <button onClick={() => navigator.clipboard.writeText(publicUrl(f))}
-                      className="text-xs text-indigo-600 hover:text-indigo-800 font-medium shrink-0">Copy</button>
+                {f.is_published ? (
+                  <div className="bg-indigo-50 rounded-lg px-3 py-2 mb-3">
+                    <p className="text-xs font-semibold text-indigo-700 mb-1">Public link — share with customers</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-indigo-700 truncate flex-1">{publicUrl(f)}</span>
+                      <button onClick={() => navigator.clipboard.writeText(publicUrl(f))}
+                        className="text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 font-medium shrink-0">Copy</button>
+                      <a href={publicUrl(f)} target="_blank" rel="noreferrer"
+                        className="text-xs bg-white border border-indigo-200 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-50 font-medium shrink-0">Open ↗</a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 rounded-lg px-3 py-2 mb-3">
+                    <p className="text-xs text-amber-700">Not shareable yet — click <b>Publish</b> to get a public link.</p>
                   </div>
                 )}
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 
@@ -33,6 +33,14 @@ export default function KeyingOrderPage() {
   const [submitted, setSubmitted] = useState(false)
   const [orderNum, setOrderNum] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [brand, setBrand] = useState<{ name: string; logo_url: string | null }>({ name: '', logo_url: null })
+
+  useEffect(() => {
+    supabase.rpc('get_keying_brand').then(({ data }) => {
+      const row = Array.isArray(data) ? data[0] : data
+      if (row) setBrand({ name: row.name || '', logo_url: row.logo_url || null })
+    })
+  }, [])
 
   const updateBrand = (index: number, updates: Partial<BrandOrder>) => {
     setBrands(bs => bs.map((b, i) => i === index ? { ...b, ...updates } : b))
@@ -99,9 +107,14 @@ export default function KeyingOrderPage() {
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-3xl mx-auto">
         <div className="bg-white rounded-xl shadow-lg p-8">
-          <div className="mb-8 pb-6 border-b border-gray-100">
-            <h1 className="text-3xl font-bold text-gray-900">🗝️ Key Order Form</h1>
-            <p className="text-gray-500 mt-1">Select what you need — just order, no pricing required</p>
+          <div className="mb-8 pb-6 border-b border-gray-100 flex items-center gap-4">
+            {brand.logo_url ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={brand.logo_url} alt={brand.name} className="h-14 w-auto max-w-[160px] object-contain" />
+            ) : (
+              <span className="text-3xl">🗝️</span>
+            )}
+            <h1 className="text-2xl font-bold text-gray-900">{brand.name ? `${brand.name} — Key Order Form` : 'Key Order Form'}</h1>
           </div>
 
           {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">{error}</div>}
