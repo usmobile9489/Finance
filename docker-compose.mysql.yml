@@ -1,0 +1,45 @@
+# ============================================================================
+#  MYSQL — ⚠️ NOT SUPPORTED BY THIS APP AS-IS.
+#
+#  This file stands up a MySQL server only. The application WILL NOT run against
+#  MySQL without a substantial rewrite, because it relies on Supabase, which is
+#  PostgreSQL-based. Specifically you would have to replace:
+#     • All data queries (the supabase-js client → a MySQL client / ORM)
+#     • Login/auth        (Supabase Auth → e.g. NextAuth)
+#     • File storage      (Supabase Storage → S3 or local disk)
+#     • Security rules    (Postgres row-level security → app-level checks)
+#     • setup.sql         (Postgres syntax → MySQL syntax)
+#
+#  Use this ONLY if you intend to port the app to MySQL. For a working install,
+#  use docker-compose.postgres.yml instead.
+#
+#  Run (database only):
+#     docker compose -f docker-compose.mysql.yml up -d
+#     MySQL: localhost:3306  (user: finance / pass below / db: finance)
+# ============================================================================
+
+services:
+  # The app service is intentionally NOT wired to MySQL because it cannot use it
+  # unedited. Build/run the app separately once it has been ported.
+  # app:
+  #   build: { context: . }
+  #   env_file: [ .env.local ]
+  #   ports: [ "3000:3000" ]
+  #   depends_on: [ db ]
+
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: change_me_root_password
+      MYSQL_DATABASE: finance
+      MYSQL_USER: finance
+      MYSQL_PASSWORD: change_me_strong_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+
+volumes:
+  mysql_data:

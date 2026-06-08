@@ -1,0 +1,45 @@
+# ============================================================================
+#  POSTGRESQL — the SUPPORTED database for this app.
+#  App + PostgreSQL on your own server.
+#
+#  Run:
+#     docker compose -f docker-compose.postgres.yml up -d --build
+#     App:      http://localhost:3000
+#     Postgres: localhost:5432   (user: postgres / pass below / db: finance)
+#
+#  Notes:
+#   • The app needs Supabase's API (login, storage, security) which is built on
+#     Postgres. Point the app at a Supabase project (cloud OR the self-hosted
+#     Supabase Docker stack pointed at THIS Postgres). Put keys in .env.local.
+#   • Run setup.sql once against this database.
+# ============================================================================
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    env_file:
+      - .env.local
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: change_me_strong_password
+      POSTGRES_DB: finance
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pg_data:
