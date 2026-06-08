@@ -209,25 +209,6 @@ function Sidebar({
             </Link>
           </CollapsibleGroup>
 
-          {/* PBX */}
-          <p className="px-3 mt-3 mb-1 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">PBX</p>
-          <Link href="/admin/calls" onClick={onClose}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-              pathname.startsWith('/admin/calls')
-                ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
-            }`}>
-            <span className="text-sm leading-none">📞</span><span>Missed Calls</span>
-          </Link>
-          <Link href="/admin/pbx-contacts" onClick={onClose}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-              pathname.startsWith('/admin/pbx-contacts')
-                ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'
-            }`}>
-            <span className="text-sm leading-none">👥</span><span>PBX Contacts</span>
-          </Link>
-
           {/* Personal */}
           {personalCompanies.map(c => (
             <CollapsibleGroup key={c.id}
