@@ -91,6 +91,24 @@ export default function SettingsPage() {
     } finally { setUserSaving(false) }
   }
 
+  // ── SignalWire / phone settings ──
+  const [sw, setSw] = useState({ space_url: '', project_id: '', api_token: '', phone_number: '', owner_ivr_pin: '', owner_phone: '' })
+  const [swSaving, setSwSaving] = useState(false)
+  const [swMsg, setSwMsg] = useState<string | null>(null)
+  useEffect(() => {
+    if (!user) return
+    supabase.from('signalwire_settings').select('*').eq('owner_id', user.id).maybeSingle()
+      .then(({ data }) => { if (data) setSw({ space_url: data.space_url || '', project_id: data.project_id || '', api_token: data.api_token || '', phone_number: data.phone_number || '', owner_ivr_pin: data.owner_ivr_pin || '', owner_phone: data.owner_phone || '' }) })
+  }, [user])
+  const saveSw = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user) return
+    setSwSaving(true); setSwMsg(null)
+    const { error } = await supabase.from('signalwire_settings').upsert({ owner_id: user.id, ...sw, updated_at: new Date().toISOString() })
+    setSwMsg(error ? error.message : 'Saved ✓')
+    setSwSaving(false)
+  }
+
   // ── Full JSON backup ──
   const [backingUp, setBackingUp] = useState(false)
   const handleBackup = async () => {
@@ -198,6 +216,33 @@ export default function SettingsPage() {
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </form>
+
+      {/* SignalWire / Phone & Call-in */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mt-8">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Phone &amp; Call-in (SignalWire)</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Powers customer phone verification and the keypad call-in (IVR). Get these from your SignalWire dashboard.
+          In SignalWire, set your number&apos;s inbound voice webhook to <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/api/ivr/voice</code>
+        </p>
+        {swMsg && <div className={`px-4 py-2 rounded-lg mb-3 text-sm ${swMsg.includes('✓') ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>{swMsg}</div>}
+        <form onSubmit={saveSw} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input placeholder="Space URL (e.g. you.signalwire.com)" value={sw.space_url} onChange={e => setSw({ ...sw, space_url: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input placeholder="Project ID" value={sw.project_id} onChange={e => setSw({ ...sw, project_id: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input placeholder="API Token" value={sw.api_token} onChange={e => setSw({ ...sw, api_token: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input placeholder="SignalWire phone number (+1...)" value={sw.phone_number} onChange={e => setSw({ ...sw, phone_number: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input placeholder="Your call-in PIN (e.g. 1234)" value={sw.owner_ivr_pin} onChange={e => setSw({ ...sw, owner_ivr_pin: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input placeholder="Your phone number (optional)" value={sw.owner_phone} onChange={e => setSw({ ...sw, owner_phone: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <button type="submit" disabled={swSaving} className="sm:col-span-2 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">
+            {swSaving ? 'Saving…' : 'Save SignalWire settings'}
+          </button>
+        </form>
+      </div>
 
       {/* Data & Backup */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mt-8">
