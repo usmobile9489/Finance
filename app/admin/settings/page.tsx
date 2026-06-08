@@ -91,6 +91,27 @@ export default function SettingsPage() {
     } finally { setUserSaving(false) }
   }
 
+  // ── Full JSON backup ──
+  const [backingUp, setBackingUp] = useState(false)
+  const handleBackup = async () => {
+    setBackingUp(true)
+    try {
+      const tables = ['companies','contacts','items','item_pricing','transactions','invoices','invoice_items',
+        'forms','form_fields','form_submissions','personal_transactions','personal_categories',
+        'phone_inventory','phone_services','phone_rentals','keying_orders','keying_locks','keying_expenses',
+        'keying_inventory','keying_prices','locksmith_projects','locksmith_inventory']
+      const dump: Record<string, unknown> = { exported_at: new Date().toISOString() }
+      for (const t of tables) {
+        const { data } = await supabase.from(t).select('*')
+        dump[t] = data || []
+      }
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' }))
+      a.download = `finance-backup-${new Date().toISOString().split('T')[0]}.json`
+      a.click()
+    } finally { setBackingUp(false) }
+  }
+
   const currentLogo = logoPreview || selectedCompany?.logo_url
 
   if (!selectedCompany && companies.length === 0) {
@@ -177,6 +198,16 @@ export default function SettingsPage() {
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </form>
+
+      {/* Data & Backup */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mt-8">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Data &amp; Backup</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Download a full copy of all your data as a JSON file. Keep it somewhere safe.</p>
+        <button onClick={handleBackup} disabled={backingUp}
+          className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm font-medium">
+          {backingUp ? 'Preparing…' : '⬇ Download full backup (JSON)'}
+        </button>
+      </div>
 
       {/* Login Users */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mt-8">

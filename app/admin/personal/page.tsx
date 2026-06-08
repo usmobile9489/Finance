@@ -113,6 +113,16 @@ export default function PersonalFinancePage() {
     return true
   })
 
+  function exportCSV() {
+    const head = ['Date', 'Description', 'Type', 'Category', 'Tags', 'Amount', 'Notes']
+    const rows = filtered.map(t => [t.date, t.description, t.type, t.category, (t.tags || []).join('; '), t.amount, t.notes || ''])
+    const csv = [head, ...rows].map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `personal-transactions-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+  }
+
   const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
   const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
   const totalDonations = filtered.filter(t => t.type === 'donation').reduce((s, t) => s + Number(t.amount), 0)
@@ -125,9 +135,14 @@ export default function PersonalFinancePage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Personal Finance</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Track your income, expenses and donations</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
-          + Add Transaction
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600">
+            CSV
+          </button>
+          <button onClick={() => setShowForm(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
+            + Add Transaction
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}

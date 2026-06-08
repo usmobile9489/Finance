@@ -17,6 +17,7 @@ export default function AdminDashboard() {
   const { selectedCompanyId, companies, user } = useContext(CompanyContext)
   const [loading, setLoading] = useState(true)
   const [perCompany, setPerCompany] = useState<CompanyPL[]>([])
+  const [monthly, setMonthly] = useState<Array<{ month: string; rev: number; exp: number }>>([])
   const [recentOrders, setRecentOrders] = useState<Array<{ id: string; order_number: string; company_name: string; contact_name: string; status: string; cut_keys: boolean; created_at: string }>>([])
   const [pendingInvoiceTotal, setPendingInvoiceTotal] = useState(0)
 
@@ -33,14 +34,14 @@ export default function AdminDashboard() {
 
       // Fetch every source once, scoped to all companies
       const [invoices, phones, services, rentals, kexp, locksmith, transactions, personalTx] = await Promise.all([
-        supabase.from('invoices').select('company_id, total, cost, status').in('company_id', allIds),
-        supabase.from('phone_inventory').select('company_id, purchase_price, sale_price, status').in('company_id', allIds),
-        supabase.from('phone_services').select('company_id, price_charged, cost_to_business, status').in('company_id', allIds),
-        supabase.from('phone_rentals').select('company_id, rental_amount, status').in('company_id', allIds),
-        supabase.from('keying_expenses').select('company_id, amount').in('company_id', allIds),
-        supabase.from('locksmith_projects').select('company_id, invoice_amount, material_cost, labor_cost, status').in('company_id', allIds),
-        supabase.from('transactions').select('company_id, amount, type').in('company_id', allIds),
-        user ? supabase.from('personal_transactions').select('amount, type').eq('user_id', user.id) : Promise.resolve({ data: [] }),
+        supabase.from('invoices').select('company_id, total, cost, status, issue_date').in('company_id', allIds),
+        supabase.from('phone_inventory').select('company_id, purchase_price, sale_price, status, sale_date').in('company_id', allIds),
+        supabase.from('phone_services').select('company_id, price_charged, cost_to_business, status, service_date').in('company_id', allIds),
+        supabase.from('phone_rentals').select('company_id, rental_amount, status, rental_start').in('company_id', allIds),
+        supabase.from('keying_expenses').select('company_id, amount, expense_date').in('company_id', allIds),
+        supabase.from('locksmith_projects').select('company_id, invoice_amount, material_cost, labor_cost, status, start_date, end_date').in('company_id', allIds),
+        supabase.from('transactions').select('company_id, amount, type, transaction_date').in('company_id', allIds),
+        user ? supabase.from('personal_transactions').select('amount, type, date').eq('user_id', user.id) : Promise.resolve({ data: [] }),
       ])
 
       const plByCompany: Record<string, PL> = {}
@@ -85,6 +86,30 @@ export default function AdminDashboard() {
         return { company: c, pl }
       })
       setPerCompany(result)
+
+      // ── Monthly trend (last 12 months) ──
+      const months: string[] = []
+      const now = new Date()
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        months.push(d.toISOString().slice(0, 7)) // YYYY-MM
+      }
+      const mmap: Record<string, { rev: number; exp: number }> = {}
+      months.forEach(m => { mmap[m] = { rev: 0, exp: 0 } })
+      const bucket = (date: string | null, rev: number, exp: number) => {
+        if (!date) return
+        const key = String(date).slice(0, 7)
+        if (mmap[key]) { mmap[key].rev += rev; mmap[key].exp += exp }
+      }
+      ;(invoices.data || []).forEach(r => { if (r.status === 'paid') bucket(r.issue_date as string, Number(r.total) || 0, Number(r.cost) || 0) })
+      ;(phones.data || []).forEach(r => { if (r.status === 'sold') bucket(r.sale_date as string, Number(r.sale_price) || 0, Number(r.purchase_price) || 0) })
+      ;(services.data || []).forEach(r => { if (r.status === 'completed') bucket(r.service_date as string, Number(r.price_charged) || 0, Number(r.cost_to_business) || 0) })
+      ;(rentals.data || []).forEach(r => { if (r.status === 'returned') bucket(r.rental_start as string, Number(r.rental_amount) || 0, 0) })
+      ;(kexp.data || []).forEach(r => bucket(r.expense_date as string, 0, Number(r.amount) || 0))
+      ;(locksmith.data || []).forEach(r => { if (r.status === 'completed') bucket((r.end_date || r.start_date) as string, Number(r.invoice_amount) || 0, (Number(r.material_cost) || 0) + (Number(r.labor_cost) || 0)) })
+      ;(transactions.data || []).forEach(r => bucket(r.transaction_date as string, r.type === 'income' ? Number(r.amount) || 0 : 0, r.type === 'income' ? 0 : Number(r.amount) || 0))
+      ;(personalTx.data || []).forEach((r: { amount: number; type: string; date: string }) => bucket(r.date, r.type === 'income' ? Number(r.amount) || 0 : 0, r.type === 'income' ? 0 : Number(r.amount) || 0))
+      setMonthly(months.map(m => ({ month: m, rev: mmap[m].rev, exp: mmap[m].exp })))
 
       // Pending (unpaid sent) invoices total
       const pending = (invoices.data || []).filter(r => r.status === 'sent' || r.status === 'pending_approval').reduce((s, r) => s + (Number(r.total) || 0), 0)
@@ -183,6 +208,38 @@ export default function AdminDashboard() {
             )}
         </div>
       )}
+
+      {/* Profit over time (last 12 months) */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-5">
+        <h2 className="font-semibold text-gray-900 dark:text-white mb-1">Profit over time</h2>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">Last 12 months — revenue vs. expenses {isAll ? '(all companies)' : ''}</p>
+        {loading ? <p className="text-gray-400 text-sm">Loading...</p> : (() => {
+          const max = Math.max(1, ...monthly.map(m => Math.max(m.rev, m.exp)))
+          const H = 120
+          return (
+            <div>
+              <div className="flex items-end gap-1.5 sm:gap-2" style={{ height: H + 24 }}>
+                {monthly.map(m => {
+                  const net = m.rev - m.exp
+                  return (
+                    <div key={m.month} className="flex-1 flex flex-col items-center justify-end gap-1" title={`${m.month}: +${fmt(m.rev)} / -${fmt(m.exp)} = ${fmt(net)}`}>
+                      <div className="w-full flex items-end justify-center gap-0.5" style={{ height: H }}>
+                        <div className="w-1/2 bg-green-500 rounded-t" style={{ height: `${(m.rev / max) * H}px` }} />
+                        <div className="w-1/2 bg-red-400 rounded-t" style={{ height: `${(m.exp / max) * H}px` }} />
+                      </div>
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500">{m.month.slice(5)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-green-500 rounded-sm inline-block" /> Revenue</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-red-400 rounded-sm inline-block" /> Expenses</span>
+              </div>
+            </div>
+          )
+        })()}
+      </div>
 
       {/* Recent submitted orders — only for accounts with a keying business */}
       {hasKeying && (

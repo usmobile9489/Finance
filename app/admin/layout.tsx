@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { getCompanies, createCompany, updateCompany, uploadCompanyLogo } from '@/lib/api'
 import { Company, CompanyKind } from '@/types/database'
 import type { User } from '@supabase/supabase-js'
+import QuickAdd from './QuickAdd'
 
 // ─── Company Context ──────────────────────────────────────────────────────────
 interface CompanyContextType {
@@ -193,6 +194,10 @@ function Sidebar({
             <Link href="/admin/reports" onClick={() => { onSelectCompany('all'); onClose() }}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${pathname.startsWith('/admin/reports') && selectedCompanyId === 'all' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
               <span>📈</span><span>Reports</span>
+            </Link>
+            <Link href="/admin/recurring" onClick={() => { onSelectCompany('all'); onClose() }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${pathname.startsWith('/admin/recurring') ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+              <span>🔄</span><span>Recurring</span>
             </Link>
             <button onClick={() => { onAddCompany(); onClose() }}
               className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
@@ -452,6 +457,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           {companies.length > 0 && <main className="flex-1 p-6 overflow-auto">{children}</main>}
         </div>
+
+        {/* Floating quick-add */}
+        {companies.length > 0 && <QuickAdd />}
 
         {/* Create Company Modal */}
         {showCreateCompany && (
