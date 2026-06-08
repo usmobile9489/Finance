@@ -1,0 +1,58 @@
+# ============================================================================
+#  Run the app + your OWN database on your own server.
+#
+#  Quick start:
+#     1) Put your keys in .env.local (see SELF_HOSTING.md)
+#     2) docker compose up -d --build
+#     3) App on http://localhost:3000 , Postgres on localhost:5432
+#
+#  IMPORTANT — read this:
+#  The app uses Supabase's API for LOGIN, FILE STORAGE and the security rules
+#  (row-level security). A bare Postgres alone does not provide those. So pick
+#  how you want to run the backend:
+#
+#    • EASIEST (recommended): delete the `db` service below, point the app at a
+#      Supabase project (cloud OR self-hosted) by setting NEXT_PUBLIC_SUPABASE_URL
+#      / keys in .env.local. The app needs only this.
+#
+#    • FULLY SELF-HOSTED on your server: run the official Supabase Docker stack
+#      (https://github.com/supabase/supabase/tree/master/docker) which INCLUDES
+#      its own Postgres, Auth, Storage and API — then point this app at it and
+#      drop the `db` service here.
+#
+#    • OWN DATABASE SERVER: keep the `db` service below (or point it at your
+#      existing Postgres / RDS). Then run the Supabase stack against THAT
+#      Postgres so you control the data on your hardware. Run setup.sql once.
+# ============================================================================
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    env_file:
+      - .env.local            # NEXT_PUBLIC_SUPABASE_URL / ANON_KEY / SERVICE_ROLE_KEY
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    # depends_on: [db]        # uncomment if you use the bundled db below
+
+  # Your own PostgreSQL database (optional — see notes above).
+  # Use this as the Postgres that your Supabase stack points at, so all data
+  # lives on your server. Run setup.sql against it once it's up.
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: change_me_strong_password
+      POSTGRES_DB: finance
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  db_data:
