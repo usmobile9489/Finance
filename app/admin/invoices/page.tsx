@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useContext } from 'react'
 import { CompanyContext } from '../layout'
+import { supabase } from '@/lib/supabase'
 import { getInvoices, createInvoice, updateInvoice, updateInvoiceWithItems, deleteInvoice, getContacts, getItems } from '@/lib/api'
 import { InvoiceWithContact } from '@/lib/api'
 import { Contact, InvoiceItem, Item } from '@/types/database'
@@ -182,6 +183,22 @@ export default function InvoicesPage() {
     } catch (err: unknown) { alert(err instanceof Error ? err.message : 'Delete failed') }
   }
 
+  const [emailingId, setEmailingId] = useState<string | null>(null)
+  const handleEmail = async (inv: InvoiceWithContact) => {
+    const to = inv.contacts?.email || prompt('Send this invoice to which email?') || ''
+    if (!to.includes('@')) { if (to) alert('That is not a valid email'); return }
+    setEmailingId(inv.id)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/email/invoice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+        body: JSON.stringify({ invoice_id: inv.id, to }),
+      })
+      const data = await res.json()
+      alert(res.ok ? `Invoice emailed to ${data.to}` : (data.error || 'Send failed'))
+    } catch { alert('Send failed') } finally { setEmailingId(null) }
+  }
+
   const handlePrint = () => {
     if (!previewInvoice) return
     const originalTitle = document.title
@@ -249,6 +266,7 @@ export default function InvoicesPage() {
                       </td>
                       <td className="px-5 py-4 text-sm flex gap-3 flex-wrap items-center">
                         <button onClick={() => setPreviewInvoice(inv)} className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">Print</button>
+                        <button onClick={() => handleEmail(inv)} disabled={emailingId === inv.id} className="text-blue-600 dark:text-blue-400 hover:underline font-medium disabled:opacity-50">{emailingId === inv.id ? 'Sending…' : 'Email'}</button>
                         <button onClick={() => openEdit(inv)} className="text-gray-600 dark:text-gray-300 hover:underline font-medium">Edit</button>
                         <button onClick={() => setInfoInvoice(inv)} className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium">Profit</button>
                         <button onClick={() => handleDelete(inv.id)} className="text-red-500 hover:text-red-700 font-medium">Delete</button>

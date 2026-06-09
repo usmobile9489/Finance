@@ -138,6 +138,17 @@ export default function SettingsPage() {
     } catch { setSmtpMsg('Send failed') } finally { setTesting(false) }
   }
 
+  const [callTesting, setCallTesting] = useState(false)
+  const sendTestCall = async () => {
+    setCallTesting(true); setSwMsg(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/phone/test-call', { method: 'POST', headers: { Authorization: `Bearer ${session?.access_token || ''}` } })
+      const data = await res.json()
+      setSwMsg(res.ok ? 'Test call placed ✓ — your phone should ring.' : (data.error || 'Call failed'))
+    } catch { setSwMsg('Call failed') } finally { setCallTesting(false) }
+  }
+
   // ── Full JSON backup ──
   const [backingUp, setBackingUp] = useState(false)
   const handleBackup = async () => {
@@ -275,9 +286,15 @@ export default function SettingsPage() {
               <span className="block text-xs text-gray-500 dark:text-gray-400">When on, after your password you&apos;ll get a call with a 4-digit code. Needs the fields above filled + your phone number. Turn on only after testing your number works.</span>
             </span>
           </label>
-          <button type="submit" disabled={swSaving} className="sm:col-span-2 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">
-            {swSaving ? 'Saving…' : 'Save SignalWire & 2FA settings'}
-          </button>
+          <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3">
+            <button type="submit" disabled={swSaving} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">
+              {swSaving ? 'Saving…' : 'Save SignalWire & 2FA settings'}
+            </button>
+            <button type="button" onClick={sendTestCall} disabled={callTesting} className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-5 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 text-sm font-medium whitespace-nowrap">
+              {callTesting ? 'Calling…' : '📞 Send test call'}
+            </button>
+          </div>
+          <p className="sm:col-span-2 text-xs text-gray-400 dark:text-gray-500">Save first, then send a test call to confirm your number works before turning on 2FA.</p>
         </form>
       </div>
 
