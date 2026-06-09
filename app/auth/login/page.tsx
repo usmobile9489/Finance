@@ -25,7 +25,15 @@ export default function LoginPage() {
       if (error) {
         setError(error.message)
       } else {
-        router.push('/admin')
+        // If this account turned on call-in 2FA, go verify by phone first.
+        const { data: { user } } = await supabase.auth.getUser()
+        let needs2fa = false
+        if (user) {
+          const { data: sw } = await supabase.from('signalwire_settings')
+            .select('require_2fa, space_url, api_token, owner_phone').eq('owner_id', user.id).maybeSingle()
+          needs2fa = !!(sw?.require_2fa && sw.space_url && sw.api_token && sw.owner_phone)
+        }
+        router.push(needs2fa ? '/auth/verify' : '/admin')
       }
     } catch (err) {
       setError('An error occurred. Please try again.')

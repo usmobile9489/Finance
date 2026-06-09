@@ -13,8 +13,10 @@
   "dependencies": {
     "@hebcal/core": "^6.5.2",
     "@supabase/supabase-js": "^2.38.0",
+    "@types/nodemailer": "^8.0.0",
     "dotenv": "^16.6.1",
     "next": "^15.0.0",
+    "nodemailer": "^8.0.10",
     "pg": "^8.21.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

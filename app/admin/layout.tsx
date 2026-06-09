@@ -279,8 +279,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.push('/auth/login'); return }
+      // Enforce call-in 2FA only when it's fully set up (no lock-out otherwise)
+      const { data: sw } = await supabase.from('signalwire_settings')
+        .select('require_2fa, space_url, api_token, owner_phone').eq('owner_id', user.id).maybeSingle()
+      if (sw?.require_2fa && sw.space_url && sw.api_token && sw.owner_phone) {
+        const { data: mfa } = await supabase.from('mfa_verifications').select('verified_at').eq('user_id', user.id).maybeSingle()
+        const ok = mfa?.verified_at && (Date.now() - new Date(mfa.verified_at).getTime() < 12 * 60 * 60 * 1000)
+        if (!ok) { router.push('/auth/verify'); return }
+      }
       setUser(user)
       loadCompanies(user.id).finally(() => setLoading(false))
     })

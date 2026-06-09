@@ -91,14 +91,14 @@ export default function SettingsPage() {
     } finally { setUserSaving(false) }
   }
 
-  // ── SignalWire / phone settings ──
-  const [sw, setSw] = useState({ space_url: '', project_id: '', api_token: '', phone_number: '', owner_ivr_pin: '', owner_phone: '' })
+  // ── SignalWire / phone settings (incl. call-in 2FA) ──
+  const [sw, setSw] = useState({ space_url: '', project_id: '', api_token: '', phone_number: '', owner_ivr_pin: '', owner_phone: '', require_2fa: false })
   const [swSaving, setSwSaving] = useState(false)
   const [swMsg, setSwMsg] = useState<string | null>(null)
   useEffect(() => {
     if (!user) return
     supabase.from('signalwire_settings').select('*').eq('owner_id', user.id).maybeSingle()
-      .then(({ data }) => { if (data) setSw({ space_url: data.space_url || '', project_id: data.project_id || '', api_token: data.api_token || '', phone_number: data.phone_number || '', owner_ivr_pin: data.owner_ivr_pin || '', owner_phone: data.owner_phone || '' }) })
+      .then(({ data }) => { if (data) setSw({ space_url: data.space_url || '', project_id: data.project_id || '', api_token: data.api_token || '', phone_number: data.phone_number || '', owner_ivr_pin: data.owner_ivr_pin || '', owner_phone: data.owner_phone || '', require_2fa: !!data.require_2fa }) })
   }, [user])
   const saveSw = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -107,6 +107,35 @@ export default function SettingsPage() {
     const { error } = await supabase.from('signalwire_settings').upsert({ owner_id: user.id, ...sw, updated_at: new Date().toISOString() })
     setSwMsg(error ? error.message : 'Saved ✓')
     setSwSaving(false)
+  }
+
+  // ── SMTP (email sending) ──
+  const [smtp, setSmtp] = useState({ host: '', port: '587', username: '', password: '', from_email: '', from_name: '', secure: false })
+  const [smtpSaving, setSmtpSaving] = useState(false)
+  const [smtpMsg, setSmtpMsg] = useState<string | null>(null)
+  const [testTo, setTestTo] = useState('')
+  const [testing, setTesting] = useState(false)
+  useEffect(() => {
+    if (!user) return
+    supabase.from('smtp_settings').select('*').eq('owner_id', user.id).maybeSingle()
+      .then(({ data }) => { if (data) setSmtp({ host: data.host || '', port: String(data.port || 587), username: data.username || '', password: data.password || '', from_email: data.from_email || '', from_name: data.from_name || '', secure: !!data.secure }) })
+  }, [user])
+  const saveSmtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user) return
+    setSmtpSaving(true); setSmtpMsg(null)
+    const { error } = await supabase.from('smtp_settings').upsert({ owner_id: user.id, ...smtp, port: parseInt(smtp.port) || 587, updated_at: new Date().toISOString() })
+    setSmtpMsg(error ? error.message : 'Saved ✓')
+    setSmtpSaving(false)
+  }
+  const sendTest = async () => {
+    setTesting(true); setSmtpMsg(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/email/test', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` }, body: JSON.stringify({ to: testTo }) })
+      const data = await res.json()
+      setSmtpMsg(res.ok ? 'Test email sent ✓' : (data.error || 'Send failed'))
+    } catch { setSmtpMsg('Send failed') } finally { setTesting(false) }
   }
 
   // ── Full JSON backup ──
@@ -236,12 +265,55 @@ export default function SettingsPage() {
             className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           <input placeholder="Your call-in PIN (e.g. 1234)" value={sw.owner_ivr_pin} onChange={e => setSw({ ...sw, owner_ivr_pin: e.target.value })}
             className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          <input placeholder="Your phone number (optional)" value={sw.owner_phone} onChange={e => setSw({ ...sw, owner_phone: e.target.value })}
+          <input placeholder="Your phone number for 2FA (+1...)" value={sw.owner_phone} onChange={e => setSw({ ...sw, owner_phone: e.target.value })}
             className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          {/* 2FA toggle */}
+          <label className="sm:col-span-2 flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer">
+            <input type="checkbox" checked={sw.require_2fa} onChange={e => setSw({ ...sw, require_2fa: e.target.checked })} className="mt-0.5 rounded" />
+            <span>
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Require a phone-call code at login (2FA)</span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400">When on, after your password you&apos;ll get a call with a 4-digit code. Needs the fields above filled + your phone number. Turn on only after testing your number works.</span>
+            </span>
+          </label>
           <button type="submit" disabled={swSaving} className="sm:col-span-2 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">
-            {swSaving ? 'Saving…' : 'Save SignalWire settings'}
+            {swSaving ? 'Saving…' : 'Save SignalWire & 2FA settings'}
           </button>
         </form>
+      </div>
+
+      {/* SMTP / Email */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mt-8">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Email (SMTP)</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Enter your email provider&apos;s SMTP details to send emails from the app (e.g. invoices). Get these from your email host (Gmail, Outlook, your domain, etc.).</p>
+        {smtpMsg && <div className={`px-4 py-2 rounded-lg mb-3 text-sm ${smtpMsg.includes('✓') ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>{smtpMsg}</div>}
+        <form onSubmit={saveSmtp} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input placeholder="SMTP host (e.g. smtp.gmail.com)" value={smtp.host} onChange={e => setSmtp({ ...smtp, host: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input placeholder="Port (587 or 465)" value={smtp.port} onChange={e => setSmtp({ ...smtp, port: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input placeholder="Username" value={smtp.username} onChange={e => setSmtp({ ...smtp, username: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input type="password" placeholder="Password / app password" value={smtp.password} onChange={e => setSmtp({ ...smtp, password: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input placeholder="From email (e.g. you@yourdomain.com)" value={smtp.from_email} onChange={e => setSmtp({ ...smtp, from_email: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input placeholder="From name (e.g. Your Business)" value={smtp.from_name} onChange={e => setSmtp({ ...smtp, from_name: e.target.value })}
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <label className="sm:col-span-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <input type="checkbox" checked={smtp.secure} onChange={e => setSmtp({ ...smtp, secure: e.target.checked })} className="rounded" />
+            Use SSL (tick for port 465)
+          </label>
+          <button type="submit" disabled={smtpSaving} className="sm:col-span-2 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">
+            {smtpSaving ? 'Saving…' : 'Save SMTP settings'}
+          </button>
+        </form>
+        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row gap-3">
+          <input type="email" placeholder="Send a test email to…" value={testTo} onChange={e => setTestTo(e.target.value)}
+            className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <button onClick={sendTest} disabled={testing || !testTo} className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-5 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 text-sm font-medium whitespace-nowrap">
+            {testing ? 'Sending…' : 'Send test'}
+          </button>
+        </div>
       </div>
 
       {/* Data & Backup */}
