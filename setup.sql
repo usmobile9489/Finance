@@ -363,6 +363,36 @@ DROP POLICY IF EXISTS "logos authenticated write" ON storage.objects;
 CREATE POLICY "logos public read" ON storage.objects FOR SELECT USING (bucket_id = 'company-logos');
 CREATE POLICY "logos authenticated write" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'company-logos');
 
+-- ── Bills: invoices you receive (vendor bills) + their uploaded files ─────────
+CREATE TABLE IF NOT EXISTS public.received_invoices (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid REFERENCES public.companies(id) ON DELETE CASCADE,
+  vendor text NOT NULL DEFAULT '',
+  amount numeric NOT NULL DEFAULT 0,
+  invoice_date date NOT NULL DEFAULT CURRENT_DATE,
+  paid boolean NOT NULL DEFAULT false,
+  file_path text,
+  file_name text,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.received_invoices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "received_invoices_all" ON public.received_invoices;
+CREATE POLICY "received_invoices_all" ON public.received_invoices FOR ALL
+  USING (company_id IN (SELECT id FROM companies WHERE user_id IN (SELECT acct_owner_ids())))
+  WITH CHECK (company_id IN (SELECT id FROM companies WHERE user_id IN (SELECT acct_owner_ids())));
+
+-- ── Private bucket for uploaded documents (bills, etc.) ──────────────────────
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('documents','documents', false)
+ON CONFLICT (id) DO NOTHING;
+DROP POLICY IF EXISTS "documents read" ON storage.objects;
+DROP POLICY IF EXISTS "documents write" ON storage.objects;
+DROP POLICY IF EXISTS "documents delete" ON storage.objects;
+CREATE POLICY "documents read" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'documents');
+CREATE POLICY "documents write" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'documents');
+CREATE POLICY "documents delete" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'documents');
+
 -- ── Done. Then in Supabase: Authentication → Providers → Email → turn OFF
 --    "Allow new users to sign up" so the app is invite-only.
 -- ============================================================================

@@ -63,6 +63,7 @@ const MODULES_BY_KIND: Record<CompanyKind, Mod[]> = {
     { label: 'Contacts', href: '/admin/customers', icon: '👥' },
     { label: 'Items', href: '/admin/items', icon: '📦' },
     { label: 'Invoices', href: '/admin/invoices', icon: '🧾' },
+    { label: 'Bills', href: '/admin/bills', icon: '📥' },
     { label: 'Reports', href: '/admin/reports', icon: '📈' },
   ],
   keying: [
@@ -73,6 +74,7 @@ const MODULES_BY_KIND: Record<CompanyKind, Mod[]> = {
     { label: 'Forms', href: '/admin/forms', icon: '📋' },
     { label: 'Contacts', href: '/admin/customers', icon: '👥' },
     { label: 'Invoices', href: '/admin/invoices', icon: '🧾' },
+    { label: 'Bills', href: '/admin/bills', icon: '📥' },
     { label: 'Reports', href: '/admin/reports', icon: '📈' },
   ],
   general: [
@@ -80,6 +82,7 @@ const MODULES_BY_KIND: Record<CompanyKind, Mod[]> = {
     { label: 'Contacts', href: '/admin/customers', icon: '👥' },
     { label: 'Items', href: '/admin/items', icon: '📦' },
     { label: 'Invoices', href: '/admin/invoices', icon: '🧾' },
+    { label: 'Bills', href: '/admin/bills', icon: '📥' },
     { label: 'Forms', href: '/admin/forms', icon: '📋' },
     { label: 'Reports', href: '/admin/reports', icon: '📈' },
   ],

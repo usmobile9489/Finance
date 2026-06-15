@@ -5,6 +5,19 @@ import Image from 'next/image'
 import { CompanyContext } from '../layout'
 import { updateCompany, uploadCompanyLogo } from '@/lib/api'
 import { supabase } from '@/lib/supabase'
+import JSZip from 'jszip'
+
+const BACKUP_TABLES = ['companies','contacts','items','item_pricing','transactions','invoices','invoice_items',
+  'forms','form_fields','form_submissions','personal_transactions','personal_categories',
+  'phone_inventory','phone_services','phone_rentals','received_invoices','keying_orders','keying_locks',
+  'keying_expenses','keying_inventory','keying_prices','locksmith_projects','locksmith_inventory']
+
+function rowsToCsv(rows: Record<string, unknown>[]): string {
+  if (!rows.length) return ''
+  const cols = Array.from(rows.reduce((s, r) => { Object.keys(r).forEach(k => s.add(k)); return s }, new Set<string>()))
+  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  return [cols.join(','), ...rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n')
+}
 
 export default function SettingsPage() {
   const { selectedCompany, companies, refreshCompanies, setSelectedCompanyId } = useContext(CompanyContext)
@@ -151,15 +164,13 @@ export default function SettingsPage() {
 
   // ── Full JSON backup ──
   const [backingUp, setBackingUp] = useState(false)
+  const [csvBackingUp, setCsvBackingUp] = useState(false)
+
   const handleBackup = async () => {
     setBackingUp(true)
     try {
-      const tables = ['companies','contacts','items','item_pricing','transactions','invoices','invoice_items',
-        'forms','form_fields','form_submissions','personal_transactions','personal_categories',
-        'phone_inventory','phone_services','phone_rentals','keying_orders','keying_locks','keying_expenses',
-        'keying_inventory','keying_prices','locksmith_projects','locksmith_inventory']
       const dump: Record<string, unknown> = { exported_at: new Date().toISOString() }
-      for (const t of tables) {
+      for (const t of BACKUP_TABLES) {
         const { data } = await supabase.from(t).select('*')
         dump[t] = data || []
       }
@@ -168,6 +179,23 @@ export default function SettingsPage() {
       a.download = `finance-backup-${new Date().toISOString().split('T')[0]}.json`
       a.click()
     } finally { setBackingUp(false) }
+  }
+
+  const handleCsvBackup = async () => {
+    setCsvBackingUp(true)
+    try {
+      const zip = new JSZip()
+      for (const t of BACKUP_TABLES) {
+        const { data } = await supabase.from(t).select('*')
+        const csv = rowsToCsv((data || []) as Record<string, unknown>[])
+        if (csv) zip.file(`${t}.csv`, csv)
+      }
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `finance-data-${new Date().toISOString().split('T')[0]}.zip`
+      a.click()
+    } finally { setCsvBackingUp(false) }
   }
 
   // ── Change login (email / password) ──
@@ -376,11 +404,17 @@ export default function SettingsPage() {
       {/* Data & Backup */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mt-8">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Data &amp; Backup</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Download a full copy of all your data as a JSON file. Keep it somewhere safe.</p>
-        <button onClick={handleBackup} disabled={backingUp}
-          className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm font-medium">
-          {backingUp ? 'Preparing…' : '⬇ Download full backup (JSON)'}
-        </button>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Download a full copy of all your data. JSON is best for re-importing later; CSV opens in Excel / Google Sheets (one file per section, inside a ZIP).</p>
+        <div className="flex flex-wrap gap-3">
+          <button onClick={handleBackup} disabled={backingUp}
+            className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm font-medium">
+            {backingUp ? 'Preparing…' : '⬇ Download backup (JSON)'}
+          </button>
+          <button onClick={handleCsvBackup} disabled={csvBackingUp}
+            className="bg-emerald-600 text-white px-5 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 text-sm font-medium">
+            {csvBackingUp ? 'Preparing…' : '⬇ Download for Excel (CSV)'}
+          </button>
+        </div>
       </div>
 
       {/* Change Login */}
