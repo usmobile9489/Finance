@@ -58,7 +58,7 @@ type Mod = { label: string; href: string; icon: string }
 const MODULES_BY_KIND: Record<CompanyKind, Mod[]> = {
   phone: [
     { label: 'Buy / Sell', href: '/admin/phone-sales', icon: '📱' },
-    { label: 'Service', href: '/admin/phone-service', icon: '🔧' },
+    { label: 'Cellular Service', href: '/admin/phone-service', icon: '📶' },
     { label: 'Rental', href: '/admin/phone-rental', icon: '📲' },
     { label: 'Contacts', href: '/admin/customers', icon: '👥' },
     { label: 'Items', href: '/admin/items', icon: '📦' },

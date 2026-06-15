@@ -18,7 +18,7 @@ type PhoneService = {
 
 const fmt = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const SERVICE_TYPES = ['Screen Repair', 'Battery Replacement', 'Charging Port', 'Speaker/Mic Repair', 'Water Damage', 'Software Issue', 'Unlocking', 'Data Recovery', 'Camera Repair', 'Other']
+const SERVICE_TYPES = ['Monthly Plan', 'Prepaid Plan', 'SIM Card', 'eSIM', 'Data Plan', 'Activation', 'Port-In', 'Plan Renewal', 'Hotspot / Data', 'Add-On', 'Other']
 
 export default function PhoneServicePage() {
   const { selectedCompanyId, companies } = useContext(CompanyContext)
@@ -28,7 +28,7 @@ export default function PhoneServicePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
-    customer: '', service_type: 'Screen Repair', cost_to_business: '',
+    customer: '', service_type: 'Monthly Plan', cost_to_business: '',
     price_charged: '', service_date: new Date().toISOString().split('T')[0], notes: '', status: 'completed' as PhoneService['status'],
   })
 
@@ -64,7 +64,7 @@ export default function PhoneServicePage() {
       }])
       if (error) throw error
       setShowForm(false)
-      setForm({ customer: '', service_type: 'Screen Repair', cost_to_business: '', price_charged: '', service_date: new Date().toISOString().split('T')[0], notes: '', status: 'completed' })
+      setForm({ customer: '', service_type: 'Monthly Plan', cost_to_business: '', price_charged: '', service_date: new Date().toISOString().split('T')[0], notes: '', status: 'completed' })
       await loadServices()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save service')
@@ -87,11 +87,11 @@ export default function PhoneServicePage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Phone Service</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Track service orders, costs and profit</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Cellular Service</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Track cellular plans sold — buy price, sell price and profit</p>
         </div>
         <button onClick={() => setShowForm(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
-          + New Service
+          + New Sale
         </button>
       </div>
 
@@ -127,7 +127,7 @@ export default function PhoneServicePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700">
-                    {['Date', 'Customer', 'Service Type', 'Cost', 'Charged', 'Profit', 'Status', ''].map(h => (
+                    {['Date', 'Customer', 'Plan / Service', 'Buy', 'Sell', 'Profit', 'Status', ''].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -167,7 +167,7 @@ export default function PhoneServicePage() {
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">New Service Record</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">New Cellular Sale</h2>
             {error && <p className="text-red-600 text-sm mb-3 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
             <form onSubmit={handleSave} className="space-y-3">
               <input type="text" placeholder="Customer name *" required value={form.customer}
@@ -179,13 +179,13 @@ export default function PhoneServicePage() {
               </select>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Cost to Business</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Buy Price</label>
                   <input type="number" step="0.01" min="0" placeholder="0.00" value={form.cost_to_business}
                     onChange={e => setForm({ ...form, cost_to_business: e.target.value })}
                     className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Price Charged *</label>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Sell Price *</label>
                   <input type="number" step="0.01" min="0" required placeholder="0.00" value={form.price_charged}
                     onChange={e => setForm({ ...form, price_charged: e.target.value })}
                     className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />

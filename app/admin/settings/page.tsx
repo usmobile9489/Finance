@@ -170,6 +170,46 @@ export default function SettingsPage() {
     } finally { setBackingUp(false) }
   }
 
+  // ── Change login (email / password) ──
+  const [login, setLogin] = useState({ email: '', newEmail: '', newPassword: '', confirm: '' })
+  const [loginSaving, setLoginSaving] = useState(false)
+  const [loginMsg, setLoginMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.email) setLogin(l => ({ ...l, email: user.email as string }))
+    })
+  }, [])
+
+  const handleChangeEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginSaving(true); setLoginMsg(null)
+    try {
+      const { error } = await supabase.auth.updateUser({ email: login.newEmail.trim() })
+      if (error) throw error
+      setLoginMsg({ ok: true, text: `Check ${login.newEmail.trim()} — we sent a confirmation link. Your email changes once you click it.` })
+      setLogin(l => ({ ...l, newEmail: '' }))
+    } catch (err) {
+      setLoginMsg({ ok: false, text: err instanceof Error ? err.message : 'Could not update email' })
+    } finally { setLoginSaving(false) }
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginMsg(null)
+    if (login.newPassword.length < 6) { setLoginMsg({ ok: false, text: 'Password must be at least 6 characters.' }); return }
+    if (login.newPassword !== login.confirm) { setLoginMsg({ ok: false, text: 'The two passwords do not match.' }); return }
+    setLoginSaving(true)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: login.newPassword })
+      if (error) throw error
+      setLoginMsg({ ok: true, text: 'Password updated. Use it next time you sign in.' })
+      setLogin(l => ({ ...l, newPassword: '', confirm: '' }))
+    } catch (err) {
+      setLoginMsg({ ok: false, text: err instanceof Error ? err.message : 'Could not update password' })
+    } finally { setLoginSaving(false) }
+  }
+
   const currentLogo = logoPreview || selectedCompany?.logo_url
 
   if (!selectedCompany && companies.length === 0) {
@@ -341,6 +381,44 @@ export default function SettingsPage() {
           className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm font-medium">
           {backingUp ? 'Preparing…' : '⬇ Download full backup (JSON)'}
         </button>
+      </div>
+
+      {/* Change Login */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 mt-8">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Login &amp; Password</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Change the email or password you use to sign in. You are signed in as <b>{login.email || '…'}</b>.
+        </p>
+        {loginMsg && (
+          <div className={`px-4 py-3 rounded-lg mb-4 text-sm ${loginMsg.ok ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>{loginMsg.text}</div>
+        )}
+
+        <form onSubmit={handleChangeEmail} className="space-y-3 mb-6">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Change login email</label>
+          <input type="email" required placeholder="new email address" value={login.newEmail}
+            onChange={e => setLogin({ ...login, newEmail: e.target.value })}
+            className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <button type="submit" disabled={loginSaving || !login.newEmail}
+            className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">
+            {loginSaving ? 'Saving…' : 'Update email'}
+          </button>
+        </form>
+
+        <div className="border-t border-gray-100 dark:border-gray-700 pt-5">
+          <form onSubmit={handleChangePassword} className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Change password</label>
+            <input type="password" required placeholder="new password (min 6 characters)" value={login.newPassword}
+              onChange={e => setLogin({ ...login, newPassword: e.target.value })}
+              className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <input type="password" required placeholder="confirm new password" value={login.confirm}
+              onChange={e => setLogin({ ...login, confirm: e.target.value })}
+              className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <button type="submit" disabled={loginSaving || !login.newPassword}
+              className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">
+              {loginSaving ? 'Saving…' : 'Update password'}
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Login Users */}
