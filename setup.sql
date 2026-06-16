@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS items (
   base_price DECIMAL(10,2) DEFAULT 0,   -- sell price
   cost_price DECIMAL(10,2),             -- purchase price
   tags TEXT[] DEFAULT '{}',
+  file_path TEXT, file_name TEXT,       -- optional uploaded receipt/invoice
   created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
@@ -113,6 +114,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   amount DECIMAL(12,2) NOT NULL, type VARCHAR(50) CHECK (type IN ('income','expense')),
   description VARCHAR(500) NOT NULL, tags TEXT[] DEFAULT '{}', notes TEXT,
   transaction_date DATE DEFAULT CURRENT_DATE,
+  file_path TEXT, file_name TEXT,       -- optional uploaded receipt/invoice
   created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
@@ -286,7 +288,8 @@ CREATE TABLE IF NOT EXISTS keying_expenses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES companies ON DELETE CASCADE,
   description VARCHAR NOT NULL, vendor VARCHAR, amount DECIMAL(10,2) NOT NULL DEFAULT 0,
-  expense_date DATE, notes TEXT, created_at TIMESTAMPTZ DEFAULT now()
+  expense_date DATE, notes TEXT, file_path TEXT, file_name TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS keying_inventory (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

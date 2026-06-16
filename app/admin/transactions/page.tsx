@@ -3,6 +3,7 @@
 import { useState, useEffect, useContext } from 'react'
 import { CompanyContext } from '../layout'
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getContacts } from '@/lib/api'
+import { uploadDoc, viewDoc, removeDoc } from '@/lib/docs'
 import { Transaction, Contact } from '@/types/database'
 
 const emptyForm = {
@@ -23,6 +24,7 @@ export default function TransactionsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Transaction | null>(null)
   const [form, setForm] = useState(emptyForm)
+  const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,9 +46,9 @@ export default function TransactionsPage() {
 
   useEffect(() => { load() }, [selectedCompanyId])
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setError(null); setShowModal(true) }
+  const openCreate = () => { setEditing(null); setForm(emptyForm); setFile(null); setError(null); setShowModal(true) }
   const openEdit = (tx: Transaction) => {
-    setEditing(tx)
+    setEditing(tx); setFile(null)
     setForm({
       description: tx.description, amount: String(tx.amount), type: tx.type,
       transaction_date: tx.transaction_date, tags: tx.tags?.join(', ') || '',
@@ -60,14 +62,16 @@ export default function TransactionsPage() {
     const companyId = selectedCompanyId === 'all' ? companies[0]?.id : selectedCompanyId
     if (!companyId) return
     setSaving(true); setError(null)
-    const payload = {
-      company_id: companyId, description: form.description,
-      amount: parseFloat(form.amount), type: form.type,
-      transaction_date: form.transaction_date,
-      tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-      notes: form.notes || null, contact_id: form.contact_id || null,
-    }
     try {
+      const doc = file ? await uploadDoc(companyId, file) : null
+      const payload = {
+        company_id: companyId, description: form.description,
+        amount: parseFloat(form.amount), type: form.type,
+        transaction_date: form.transaction_date,
+        tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        notes: form.notes || null, contact_id: form.contact_id || null,
+        ...(doc ? { file_path: doc.file_path, file_name: doc.file_name } : {}),
+      }
       if (editing) {
         const updated = await updateTransaction(editing.id, payload)
         setTransactions(ts => ts.map(t => t.id === editing.id ? { ...updated, contacts: t.contacts } : t))
@@ -80,9 +84,9 @@ export default function TransactionsPage() {
     finally { setSaving(false) }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (tx: Transaction) => {
     if (!confirm('Delete this transaction?')) return
-    try { await deleteTransaction(id); setTransactions(ts => ts.filter(t => t.id !== id)) }
+    try { await removeDoc(tx.file_path); await deleteTransaction(tx.id); setTransactions(ts => ts.filter(t => t.id !== tx.id)) }
     catch (err: unknown) { alert(err instanceof Error ? err.message : 'Delete failed') }
   }
 
@@ -190,6 +194,7 @@ export default function TransactionsPage() {
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tags</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Type</th>
                   <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Amount</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">File</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
@@ -214,9 +219,14 @@ export default function TransactionsPage() {
                     <td className={`px-5 py-4 text-sm font-bold text-right ${tx.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
                       {tx.type === 'income' ? '+' : '-'}{fmt(Number(tx.amount))}
                     </td>
+                    <td className="px-5 py-4 text-sm">
+                      {tx.file_path
+                        ? <button onClick={() => viewDoc(tx.file_path!)} className="text-indigo-600 hover:underline">📎 View</button>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-5 py-4 text-sm flex gap-3">
                       <button onClick={() => openEdit(tx)} className="text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
-                      <button onClick={() => handleDelete(tx.id)} className="text-red-500 hover:text-red-700 font-medium">Delete</button>
+                      <button onClick={() => handleDelete(tx)} className="text-red-500 hover:text-red-700 font-medium">Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -261,11 +271,17 @@ export default function TransactionsPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               <textarea placeholder="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
                 rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Attach receipt / invoice (PDF or photo){editing?.file_name ? ' — replaces current file' : ''}</label>
+                <input type="file" accept="application/pdf,image/*" onChange={e => setFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-indigo-50 file:text-indigo-700" />
+                {editing?.file_name && <p className="text-xs text-gray-400 mt-1">Current: {editing.file_name}</p>}
+              </div>
               <div className="flex gap-3 pt-1">
                 <button type="submit" disabled={saving} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">
                   {saving ? 'Saving...' : editing ? 'Save Changes' : 'Add Transaction'}
                 </button>
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium">Cancel</button>
+                <button type="button" onClick={() => { setShowModal(false); setFile(null) }} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium">Cancel</button>
               </div>
             </form>
           </div>

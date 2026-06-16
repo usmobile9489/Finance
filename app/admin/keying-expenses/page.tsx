@@ -3,6 +3,7 @@
 import { useState, useEffect, useContext } from 'react'
 import { CompanyContext } from '../layout'
 import { supabase } from '@/lib/supabase'
+import { uploadDoc, viewDoc, removeDoc } from '@/lib/docs'
 
 type Expense = {
   id: string
@@ -12,6 +13,8 @@ type Expense = {
   amount: number
   expense_date: string | null
   notes: string | null
+  file_path: string | null
+  file_name: string | null
 }
 
 const fmt = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -23,6 +26,7 @@ export default function KeyingExpensesPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null)
   const [form, setForm] = useState({ description: '', vendor: '', amount: '', expense_date: new Date().toISOString().split('T')[0], notes: '' })
 
   const companyIds = selectedCompanyId === 'all' ? companies.map(c => c.id) : [selectedCompanyId]
@@ -42,21 +46,24 @@ export default function KeyingExpensesPage() {
     setSaving(true); setError(null)
     try {
       const companyId = selectedCompanyId === 'all' ? companies[0].id : selectedCompanyId
+      const doc = file ? await uploadDoc(companyId, file) : { file_path: null, file_name: null }
       const { error } = await supabase.from('keying_expenses').insert([{
         company_id: companyId, description: form.description, vendor: form.vendor || null,
         amount: parseFloat(form.amount) || 0, expense_date: form.expense_date, notes: form.notes || null,
+        file_path: doc.file_path, file_name: doc.file_name,
       }])
       if (error) throw error
-      setShowAdd(false)
+      setShowAdd(false); setFile(null)
       setForm({ description: '', vendor: '', amount: '', expense_date: new Date().toISOString().split('T')[0], notes: '' })
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed') } finally { setSaving(false) }
   }
 
-  async function del(id: string) {
+  async function del(e: Expense) {
     if (!confirm('Delete this expense?')) return
-    await supabase.from('keying_expenses').delete().eq('id', id)
-    setExpenses(prev => prev.filter(x => x.id !== id))
+    await removeDoc(e.file_path)
+    await supabase.from('keying_expenses').delete().eq('id', e.id)
+    setExpenses(prev => prev.filter(x => x.id !== e.id))
   }
 
   const total = expenses.reduce((s, e) => s + e.amount, 0)
@@ -94,7 +101,7 @@ export default function KeyingExpensesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700">
-                    {['Date', 'Description', 'Vendor', 'Amount', ''].map(h => (
+                    {['Date', 'Description', 'Vendor', 'Amount', 'File', ''].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">{h}</th>
                     ))}
                   </tr>
@@ -110,7 +117,12 @@ export default function KeyingExpensesPage() {
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{e.vendor || '—'}</td>
                       <td className="px-4 py-3 font-bold text-red-600 dark:text-red-400">{fmt(e.amount)}</td>
                       <td className="px-4 py-3">
-                        <button onClick={() => del(e.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500">
+                        {e.file_path
+                          ? <button onClick={() => viewDoc(e.file_path!)} className="text-indigo-600 dark:text-indigo-400 hover:underline">📎 View</button>
+                          : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button onClick={() => del(e)} className="text-gray-300 dark:text-gray-600 hover:text-red-500">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                       </td>
@@ -149,9 +161,14 @@ export default function KeyingExpensesPage() {
               </div>
               <textarea placeholder="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
                 rows={2} className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Upload receipt / invoice (PDF or photo)</label>
+                <input type="file" accept="application/pdf,image/*" onChange={e => setFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-gray-600 dark:text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/30 dark:file:text-indigo-300" />
+              </div>
               <div className="flex gap-3 pt-1">
                 <button type="submit" disabled={saving} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">{saving ? 'Saving...' : 'Add Expense'}</button>
-                <button type="button" onClick={() => { setShowAdd(false); setError(null) }} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-2 rounded-lg text-sm font-medium">Cancel</button>
+                <button type="button" onClick={() => { setShowAdd(false); setError(null); setFile(null) }} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-2 rounded-lg text-sm font-medium">Cancel</button>
               </div>
             </form>
           </div>

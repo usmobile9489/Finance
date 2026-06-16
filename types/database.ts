@@ -34,6 +34,8 @@ export interface Item {
   base_price: number
   cost_price?: number | null
   tags: string[]
+  file_path?: string | null
+  file_name?: string | null
   created_at: string
   updated_at: string
 }
@@ -66,6 +68,8 @@ export interface Transaction {
   tags: string[]
   notes: string | null
   transaction_date: string
+  file_path?: string | null
+  file_name?: string | null
   created_at: string
   updated_at: string
 }

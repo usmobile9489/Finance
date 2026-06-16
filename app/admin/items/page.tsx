@@ -3,6 +3,7 @@
 import { useState, useEffect, useContext } from 'react'
 import { CompanyContext } from '../layout'
 import { getItems, createItem, updateItem, deleteItem, getContacts, getItemPricing, upsertItemPricing, deleteItemPricing } from '@/lib/api'
+import { uploadDoc, viewDoc, removeDoc } from '@/lib/docs'
 import { Item, Contact, ItemCustomerPrice } from '@/types/database'
 
 const emptyForm = { name: '', description: '', base_price: '', cost_price: '', tags: '' }
@@ -16,6 +17,7 @@ export default function ItemsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Item | null>(null)
   const [form, setForm] = useState(emptyForm)
+  const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,8 +45,9 @@ export default function ItemsPage() {
 
   useEffect(() => { load() }, [selectedCompanyId])
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm); setError(null); setShowModal(true) }
+  const openCreate = () => { setEditing(null); setForm(emptyForm); setFile(null); setError(null); setShowModal(true) }
   const openEdit = (item: Item) => {
+    setFile(null)
     setEditing(item)
     setForm({ name: item.name, description: item.description || '', base_price: String(item.base_price), cost_price: item.cost_price != null ? String(item.cost_price) : '', tags: (item.tags || []).join(', ') })
     setError(null); setShowModal(true)
@@ -61,13 +64,15 @@ export default function ItemsPage() {
     const companyId = selectedCompanyId === 'all' ? companies[0]?.id : selectedCompanyId
     if (!companyId) return
     setSaving(true); setError(null)
-    const payload = {
-      company_id: companyId, name: form.name, description: form.description || null,
-      base_price: parseFloat(form.base_price),
-      cost_price: form.cost_price ? parseFloat(form.cost_price) : null,
-      tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-    }
     try {
+      const doc = file ? await uploadDoc(companyId, file) : null
+      const payload = {
+        company_id: companyId, name: form.name, description: form.description || null,
+        base_price: parseFloat(form.base_price),
+        cost_price: form.cost_price ? parseFloat(form.cost_price) : null,
+        tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        ...(doc ? { file_path: doc.file_path, file_name: doc.file_name } : {}),
+      }
       if (editing) {
         const updated = await updateItem(editing.id, payload)
         setItems(is => is.map(i => i.id === editing.id ? updated : i))
@@ -80,9 +85,9 @@ export default function ItemsPage() {
     finally { setSaving(false) }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (item: Item) => {
     if (!confirm('Delete this item?')) return
-    try { await deleteItem(id); setItems(is => is.filter(i => i.id !== id)) }
+    try { await removeDoc(item.file_path); await deleteItem(item.id); setItems(is => is.filter(i => i.id !== item.id)) }
     catch (err: unknown) { alert(err instanceof Error ? err.message : 'Delete failed') }
   }
 
@@ -138,6 +143,7 @@ export default function ItemsPage() {
                     <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Cost Price</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Profit</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tags</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">File</th>
                     <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
@@ -165,10 +171,15 @@ export default function ItemsPage() {
                             {(item.tags || []).map((tag, i) => <span key={i} className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-xs">{tag}</span>)}
                           </div>
                         </td>
+                        <td className="px-5 py-4 text-sm">
+                          {item.file_path
+                            ? <button onClick={() => viewDoc(item.file_path!)} className="text-indigo-600 hover:underline">📎 View</button>
+                            : <span className="text-gray-300">—</span>}
+                        </td>
                         <td className="px-5 py-4 text-sm flex gap-3 flex-wrap">
                           <button onClick={() => openEdit(item)} className="text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
                           <button onClick={() => openPricing(item)} className="text-green-600 hover:text-green-800 font-medium">Pricing</button>
-                          <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-700 font-medium">Delete</button>
+                          <button onClick={() => handleDelete(item)} className="text-red-500 hover:text-red-700 font-medium">Delete</button>
                         </td>
                       </tr>
                     )
@@ -211,6 +222,12 @@ export default function ItemsPage() {
               )}
               <input type="text" placeholder="Tags (comma-separated)" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Upload receipt / invoice (PDF or photo){editing && (editing.file_name || editing.file_path) ? ' — replaces current file' : ''}</label>
+                <input type="file" accept="application/pdf,image/*" onChange={e => setFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-indigo-50 file:text-indigo-700" />
+                {editing?.file_name && <p className="text-xs text-gray-400 mt-1">Current: {editing.file_name}</p>}
+              </div>
               <div className="flex gap-3 pt-1">
                 <button type="submit" disabled={saving} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">
                   {saving ? 'Saving...' : editing ? 'Save Changes' : 'Add Item'}
