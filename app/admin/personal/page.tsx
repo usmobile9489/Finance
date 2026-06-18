@@ -48,11 +48,21 @@ export default function PersonalFinancePage() {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [catNames, setCatNames] = useState<string[]>(PRESET_CATEGORIES)
 
   useEffect(() => {
     if (!user) return
     loadTransactions()
+    loadCategories()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
+
+  async function loadCategories() {
+    const { data } = await supabase.from('personal_categories').select('name').eq('user_id', user!.id).order('name')
+    const names = (data || []).map((c: { name: string }) => c.name)
+    setCatNames(names.length ? [...names, 'Other'] : PRESET_CATEGORIES)
+  }
 
   async function loadTransactions() {
     setLoading(true)
@@ -73,7 +83,7 @@ export default function PersonalFinancePage() {
     try {
       const category = form.category === 'Other' ? form.customCategory : form.category
       const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean)
-      const { error } = await supabase.from('personal_transactions').insert([{
+      const payload = {
         user_id: user.id,
         date: form.date,
         amount: parseFloat(form.amount),
@@ -82,14 +92,18 @@ export default function PersonalFinancePage() {
         tags,
         notes: form.notes || null,
         description: form.description,
-        attachment_url: null,
         is_subscription: form.is_subscription,
         subscription_frequency: form.is_subscription ? form.subscription_frequency : null,
         subscription_note: form.is_subscription ? (form.subscription_note || null) : null,
-      }])
-      if (error) throw error
-      setShowForm(false)
-      setForm({ date: new Date().toISOString().split('T')[0], amount: '', type: 'expense', category: 'Food', customCategory: '', tags: '', notes: '', description: '', is_subscription: false, subscription_frequency: 'monthly', subscription_note: '' })
+      }
+      if (editingId) {
+        const { error } = await supabase.from('personal_transactions').update(payload).eq('id', editingId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('personal_transactions').insert([{ ...payload, attachment_url: null }])
+        if (error) throw error
+      }
+      closeForm()
       await loadTransactions()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save transaction')
@@ -102,6 +116,26 @@ export default function PersonalFinancePage() {
     if (!confirm('Delete this transaction?')) return
     await supabase.from('personal_transactions').delete().eq('id', id)
     setTransactions(prev => prev.filter(t => t.id !== id))
+  }
+
+  function closeForm() {
+    setShowForm(false); setEditingId(null); setError(null)
+    setForm({ date: new Date().toISOString().split('T')[0], amount: '', type: 'expense', category: 'Food', customCategory: '', tags: '', notes: '', description: '', is_subscription: false, subscription_frequency: 'monthly', subscription_note: '' })
+  }
+
+  function openCreate() { closeForm(); setShowForm(true) }
+
+  function openEdit(tx: PersonalTx) {
+    setEditingId(tx.id)
+    setForm({
+      date: tx.date, amount: String(tx.amount), type: tx.type,
+      category: tx.category, customCategory: '', tags: (tx.tags || []).join(', '),
+      notes: tx.notes || '', description: tx.description,
+      is_subscription: tx.is_subscription,
+      subscription_frequency: tx.subscription_frequency || 'monthly',
+      subscription_note: tx.subscription_note || '',
+    })
+    setError(null); setShowForm(true)
   }
 
   const filtered = transactions.filter(t => {
@@ -139,7 +173,7 @@ export default function PersonalFinancePage() {
           <button onClick={exportCSV} className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600">
             CSV
           </button>
-          <button onClick={() => setShowForm(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
+          <button onClick={openCreate} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
             + Add Transaction
           </button>
         </div>
@@ -205,7 +239,7 @@ export default function PersonalFinancePage() {
         ) : filtered.length === 0 ? (
           <div className="p-8 text-center">
             <p className="text-gray-400 dark:text-gray-500 mb-3">No transactions found.</p>
-            <button onClick={() => setShowForm(true)} className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">+ Add your first transaction</button>
+            <button onClick={openCreate} className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">+ Add your first transaction</button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -260,11 +294,18 @@ export default function PersonalFinancePage() {
                       {tx.type === 'income' ? '+' : '-'}{fmt(Number(tx.amount))}
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => handleDelete(tx.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openEdit(tx)} className="text-gray-300 dark:text-gray-600 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors" title="Edit">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button onClick={() => handleDelete(tx.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors" title="Delete">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -278,7 +319,7 @@ export default function PersonalFinancePage() {
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add Transaction</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{editingId ? 'Edit Transaction' : 'Add Transaction'}</h2>
             {error && <p className="text-red-600 text-sm mb-3 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
             <form onSubmit={handleSave} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -319,7 +360,7 @@ export default function PersonalFinancePage() {
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category</label>
                 <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
                   className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  {PRESET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {(catNames.includes(form.category) || form.category === 'Other' ? catNames : [form.category, ...catNames]).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 {form.category === 'Other' && (
                   <input type="text" placeholder="Custom category name" value={form.customCategory}
@@ -375,9 +416,9 @@ export default function PersonalFinancePage() {
               </div>
               <div className="flex gap-3 pt-1">
                 <button type="submit" disabled={saving} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">
-                  {saving ? 'Saving...' : 'Save Transaction'}
+                  {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Save Transaction'}
                 </button>
-                <button type="button" onClick={() => { setShowForm(false); setError(null) }}
+                <button type="button" onClick={closeForm}
                   className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">
                   Cancel
                 </button>
