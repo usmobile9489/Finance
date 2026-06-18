@@ -29,6 +29,7 @@ export default function PersonalFinancePage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filterType, setFilterType] = useState<string>('all')
+  const [filterRecurring, setFilterRecurring] = useState<'all' | 'recurring' | 'one-time'>('all')
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterTag, setFilterTag] = useState<string>('')
   const [dateFrom, setDateFrom] = useState('')
@@ -140,6 +141,8 @@ export default function PersonalFinancePage() {
 
   const filtered = transactions.filter(t => {
     if (filterType !== 'all' && t.type !== filterType) return false
+    if (filterRecurring === 'recurring' && !t.is_subscription) return false
+    if (filterRecurring === 'one-time' && t.is_subscription) return false
     if (filterCategory !== 'all' && t.category !== filterCategory) return false
     if (filterTag && !t.tags?.some(tag => tag.toLowerCase().includes(filterTag.toLowerCase()))) return false
     if (dateFrom && t.date < dateFrom) return false
@@ -213,6 +216,12 @@ export default function PersonalFinancePage() {
           <option value="expense">Expenses</option>
           <option value="donation">Donations</option>
         </select>
+        <select value={filterRecurring} onChange={e => setFilterRecurring(e.target.value as 'all' | 'recurring' | 'one-time')}
+          className="border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="all">All (incl. recurring)</option>
+          <option value="one-time">Hide recurring</option>
+          <option value="recurring">Recurring only</option>
+        </select>
         <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
           className="border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
           <option value="all">All Categories</option>
@@ -224,8 +233,8 @@ export default function PersonalFinancePage() {
           className="border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
           className="border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        {(filterType !== 'all' || filterCategory !== 'all' || filterTag || dateFrom || dateTo) && (
-          <button onClick={() => { setFilterType('all'); setFilterCategory('all'); setFilterTag(''); setDateFrom(''); setDateTo('') }}
+        {(filterType !== 'all' || filterRecurring !== 'all' || filterCategory !== 'all' || filterTag || dateFrom || dateTo) && (
+          <button onClick={() => { setFilterType('all'); setFilterRecurring('all'); setFilterCategory('all'); setFilterTag(''); setDateFrom(''); setDateTo('') }}
             className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2">
             Clear filters
           </button>
