@@ -249,6 +249,7 @@ CREATE TABLE IF NOT EXISTS phone_services (
   cost_to_business DECIMAL(10,2) NOT NULL DEFAULT 0, price_charged DECIMAL(10,2) NOT NULL DEFAULT 0,
   service_date DATE NOT NULL, notes TEXT,
   status VARCHAR NOT NULL DEFAULT 'completed' CHECK (status IN ('pending','completed','cancelled')),
+  paid BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS phone_rentals (
