@@ -3,6 +3,8 @@
 import { useState, useEffect, useContext } from 'react'
 import { CompanyContext } from '../layout'
 import { supabase } from '@/lib/supabase'
+import { getContacts } from '@/lib/api'
+import { Contact } from '@/types/database'
 
 type PhoneRental = {
   id: string
@@ -32,6 +34,7 @@ function getRentalStatus(rental: PhoneRental): 'active' | 'returned' | 'overdue'
 export default function PhoneRentalPage() {
   const { selectedCompanyId, companies } = useContext(CompanyContext)
   const [rentals, setRentals] = useState<PhoneRental[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'active' | 'returned' | 'all'>('active')
   const [showForm, setShowForm] = useState(false)
@@ -49,7 +52,16 @@ export default function PhoneRentalPage() {
   useEffect(() => {
     if (companyIds.length === 0) return
     loadRentals()
+    loadContacts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCompanyId, companies])
+
+  async function loadContacts() {
+    const lists = await Promise.all(companyIds.map(id => getContacts(id, 'customer')))
+    setContacts(lists.flat())
+  }
+
+  const customerNames = Array.from(new Set(contacts.map(c => c.name))).sort((a, b) => a.localeCompare(b))
 
   async function loadRentals() {
     setLoading(true)
@@ -246,9 +258,17 @@ export default function PhoneRentalPage() {
                   onChange={e => setForm({ ...form, imei: e.target.value })}
                   className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
-              <input type="text" placeholder="Customer name *" required value={form.customer}
-                onChange={e => setForm({ ...form, customer: e.target.value })}
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              {customerNames.length > 0 ? (
+                <select required value={form.customer} onChange={e => setForm({ ...form, customer: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Select customer *</option>
+                  {(form.customer && !customerNames.includes(form.customer) ? [form.customer, ...customerNames] : customerNames).map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              ) : (
+                <input type="text" placeholder="Customer name * (add Contacts to pick from a list)" required value={form.customer}
+                  onChange={e => setForm({ ...form, customer: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Start Date *</label>

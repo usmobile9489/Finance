@@ -3,6 +3,8 @@
 import { useState, useEffect, useContext } from 'react'
 import { CompanyContext } from '../layout'
 import { supabase } from '@/lib/supabase'
+import { getContacts } from '@/lib/api'
+import { Contact } from '@/types/database'
 
 type PhoneService = {
   id: string
@@ -24,6 +26,7 @@ const SERVICE_TYPES = ['Monthly Plan', 'Prepaid Plan', 'SIM Card', 'eSIM', 'Data
 export default function PhoneServicePage() {
   const { selectedCompanyId, companies } = useContext(CompanyContext)
   const [services, setServices] = useState<PhoneService[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -40,7 +43,16 @@ export default function PhoneServicePage() {
   useEffect(() => {
     if (companyIds.length === 0) return
     loadServices()
+    loadContacts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCompanyId, companies])
+
+  async function loadContacts() {
+    const lists = await Promise.all(companyIds.map(id => getContacts(id, 'customer')))
+    setContacts(lists.flat())
+  }
+
+  const customerNames = Array.from(new Set(contacts.map(c => c.name))).sort((a, b) => a.localeCompare(b))
 
   async function loadServices() {
     setLoading(true)
@@ -206,9 +218,17 @@ export default function PhoneServicePage() {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{editingId ? 'Edit Cellular Sale' : 'New Cellular Sale'}</h2>
             {error && <p className="text-red-600 text-sm mb-3 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
             <form onSubmit={handleSave} className="space-y-3">
-              <input type="text" placeholder="Customer name *" required value={form.customer}
-                onChange={e => setForm({ ...form, customer: e.target.value })}
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              {customerNames.length > 0 ? (
+                <select required value={form.customer} onChange={e => setForm({ ...form, customer: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Select customer *</option>
+                  {(form.customer && !customerNames.includes(form.customer) ? [form.customer, ...customerNames] : customerNames).map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              ) : (
+                <input type="text" placeholder="Customer name * (add Contacts to pick from a list)" required value={form.customer}
+                  onChange={e => setForm({ ...form, customer: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              )}
               <select value={form.service_type} onChange={e => setForm({ ...form, service_type: e.target.value })}
                 className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 {SERVICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}

@@ -3,6 +3,8 @@
 import { useState, useEffect, useContext } from 'react'
 import { CompanyContext } from '../layout'
 import { supabase } from '@/lib/supabase'
+import { getContacts } from '@/lib/api'
+import { Contact } from '@/types/database'
 
 type PhoneDevice = {
   id: string
@@ -27,6 +29,7 @@ const fmt = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigi
 export default function PhoneSalesPage() {
   const { selectedCompanyId, companies } = useContext(CompanyContext)
   const [devices, setDevices] = useState<PhoneDevice[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'inventory' | 'sold'>('inventory')
   const [showAddDevice, setShowAddDevice] = useState(false)
@@ -48,7 +51,16 @@ export default function PhoneSalesPage() {
   useEffect(() => {
     if (companyIds.length === 0) return
     loadDevices()
+    loadContacts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCompanyId, companies])
+
+  async function loadContacts() {
+    const lists = await Promise.all(companyIds.map(id => getContacts(id, 'customer')))
+    setContacts(lists.flat())
+  }
+
+  const customerNames = Array.from(new Set(contacts.map(c => c.name))).sort((a, b) => a.localeCompare(b))
 
   async function loadDevices() {
     setLoading(true)
@@ -359,9 +371,17 @@ export default function PhoneSalesPage() {
                   Profit: {fmt(parseFloat(saleForm.sale_price) - showSellModal.purchase_price)}
                 </div>
               )}
-              <input type="text" placeholder="Customer name" value={saleForm.customer}
-                onChange={e => setSaleForm({ ...saleForm, customer: e.target.value })}
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              {customerNames.length > 0 ? (
+                <select value={saleForm.customer} onChange={e => setSaleForm({ ...saleForm, customer: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Select customer</option>
+                  {(saleForm.customer && !customerNames.includes(saleForm.customer) ? [saleForm.customer, ...customerNames] : customerNames).map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              ) : (
+                <input type="text" placeholder="Customer name (add Contacts to pick from a list)" value={saleForm.customer}
+                  onChange={e => setSaleForm({ ...saleForm, customer: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              )}
               <textarea placeholder="Notes" value={saleForm.sale_notes} onChange={e => setSaleForm({ ...saleForm, sale_notes: e.target.value })}
                 rows={2} className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
