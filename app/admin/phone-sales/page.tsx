@@ -18,6 +18,7 @@ type PhoneDevice = {
   sale_date: string | null
   customer: string | null
   sale_notes: string | null
+  paid: boolean
   company_id: string
 }
 
@@ -29,16 +30,18 @@ export default function PhoneSalesPage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'inventory' | 'sold'>('inventory')
   const [showAddDevice, setShowAddDevice] = useState(false)
+  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null)
   const [showSellModal, setShowSellModal] = useState<PhoneDevice | null>(null)
+  const [sellEditing, setSellEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [deviceForm, setDeviceForm] = useState({
+  const emptyDeviceForm = {
     device_name: '', imei: '', serial_number: '', purchase_price: '',
     purchase_date: new Date().toISOString().split('T')[0], seller: '', notes: '',
-  })
-  const [saleForm, setSaleForm] = useState({
-    sale_price: '', sale_date: new Date().toISOString().split('T')[0], customer: '', sale_notes: '',
-  })
+  }
+  const [deviceForm, setDeviceForm] = useState(emptyDeviceForm)
+  const emptySaleForm = { sale_price: '', sale_date: new Date().toISOString().split('T')[0], customer: '', sale_notes: '', paid: false }
+  const [saleForm, setSaleForm] = useState(emptySaleForm)
 
   const companyIds = selectedCompanyId === 'all' ? companies.map(c => c.id) : [selectedCompanyId]
 
@@ -61,8 +64,7 @@ export default function PhoneSalesPage() {
     setError(null)
     try {
       const companyId = selectedCompanyId === 'all' ? companies[0].id : selectedCompanyId
-      const { error } = await supabase.from('phone_inventory').insert([{
-        company_id: companyId,
+      const fields = {
         device_name: deviceForm.device_name,
         imei: deviceForm.imei || null,
         serial_number: deviceForm.serial_number || null,
@@ -70,17 +72,33 @@ export default function PhoneSalesPage() {
         purchase_date: deviceForm.purchase_date,
         seller: deviceForm.seller || null,
         notes: deviceForm.notes || null,
-        status: 'in_stock',
-      }])
-      if (error) throw error
-      setShowAddDevice(false)
-      setDeviceForm({ device_name: '', imei: '', serial_number: '', purchase_price: '', purchase_date: new Date().toISOString().split('T')[0], seller: '', notes: '' })
+      }
+      if (editingDeviceId) {
+        const { error } = await supabase.from('phone_inventory').update(fields).eq('id', editingDeviceId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('phone_inventory').insert([{ company_id: companyId, status: 'in_stock', ...fields }])
+        if (error) throw error
+      }
+      closeDeviceForm()
       await loadDevices()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to add device')
     } finally {
       setSaving(false)
     }
+  }
+
+  function closeDeviceForm() { setShowAddDevice(false); setEditingDeviceId(null); setError(null); setDeviceForm(emptyDeviceForm) }
+  function openAddDevice() { closeDeviceForm(); setShowAddDevice(true) }
+  function openEditDevice(d: PhoneDevice) {
+    setEditingDeviceId(d.id)
+    setDeviceForm({
+      device_name: d.device_name, imei: d.imei || '', serial_number: d.serial_number || '',
+      purchase_price: String(d.purchase_price ?? ''), purchase_date: d.purchase_date,
+      seller: d.seller || '', notes: d.notes || '',
+    })
+    setError(null); setShowAddDevice(true)
   }
 
   async function handleSell(e: React.FormEvent) {
@@ -95,16 +113,32 @@ export default function PhoneSalesPage() {
         sale_date: saleForm.sale_date,
         customer: saleForm.customer || null,
         sale_notes: saleForm.sale_notes || null,
+        paid: saleForm.paid,
       }).eq('id', showSellModal.id)
       if (error) throw error
-      setShowSellModal(null)
-      setSaleForm({ sale_price: '', sale_date: new Date().toISOString().split('T')[0], customer: '', sale_notes: '' })
+      closeSellModal()
       await loadDevices()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to record sale')
     } finally {
       setSaving(false)
     }
+  }
+
+  function closeSellModal() { setShowSellModal(null); setSellEditing(false); setError(null); setSaleForm(emptySaleForm) }
+  function openSell(d: PhoneDevice) { setSellEditing(false); setSaleForm(emptySaleForm); setError(null); setShowSellModal(d) }
+  function openEditSale(d: PhoneDevice) {
+    setSellEditing(true)
+    setSaleForm({
+      sale_price: String(d.sale_price ?? ''), sale_date: d.sale_date || new Date().toISOString().split('T')[0],
+      customer: d.customer || '', sale_notes: d.sale_notes || '', paid: d.paid,
+    })
+    setError(null); setShowSellModal(d)
+  }
+
+  async function togglePaid(d: PhoneDevice) {
+    await supabase.from('phone_inventory').update({ paid: !d.paid }).eq('id', d.id)
+    setDevices(prev => prev.map(x => x.id === d.id ? { ...x, paid: !x.paid } : x))
   }
 
   async function handleDelete(id: string) {
@@ -127,7 +161,7 @@ export default function PhoneSalesPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Phone Buy / Sell</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Track phone inventory, sales and profit</p>
         </div>
-        <button onClick={() => setShowAddDevice(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
+        <button onClick={openAddDevice} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
           + Add Device
         </button>
       </div>
@@ -172,7 +206,7 @@ export default function PhoneSalesPage() {
         ) : displayed.length === 0 ? (
           <div className="p-8 text-center">
             <p className="text-gray-400 dark:text-gray-500 mb-3">{tab === 'inventory' ? 'No devices in stock.' : 'No sold devices yet.'}</p>
-            {tab === 'inventory' && <button onClick={() => setShowAddDevice(true)} className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">+ Add a device</button>}
+            {tab === 'inventory' && <button onClick={openAddDevice} className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">+ Add a device</button>}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -187,6 +221,7 @@ export default function PhoneSalesPage() {
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Sale Price</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Profit</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Customer</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Paid</th>
                   </>}
                   <th className="px-4 py-3" />
                 </tr>
@@ -211,16 +246,30 @@ export default function PhoneSalesPage() {
                         <td className="px-4 py-3 text-right font-medium text-green-600 dark:text-green-400">{fmt(d.sale_price || 0)}</td>
                         <td className={`px-4 py-3 text-right font-bold ${profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{fmt(profit)}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{d.customer || '—'}</td>
+                        <td className="px-4 py-3">
+                          <button onClick={() => togglePaid(d)} className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            d.paid ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
+                          }`}>{d.paid ? 'paid' : 'unpaid'}</button>
+                        </td>
                       </>}
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
-                          {tab === 'inventory' && (
-                            <button onClick={() => { setShowSellModal(d); setSaleForm({ sale_price: '', sale_date: new Date().toISOString().split('T')[0], customer: '', sale_notes: '' }) }}
-                              className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2.5 py-1 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 font-medium">
-                              Sell
+                          {tab === 'inventory' ? (
+                            <>
+                              <button onClick={() => openSell(d)}
+                                className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2.5 py-1 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 font-medium">
+                                Sell
+                              </button>
+                              <button onClick={() => openEditDevice(d)} className="text-gray-300 dark:text-gray-600 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors" title="Edit">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                            </>
+                          ) : (
+                            <button onClick={() => openEditSale(d)} className="text-gray-300 dark:text-gray-600 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors" title="Edit sale">
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                             </button>
                           )}
-                          <button onClick={() => handleDelete(d.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+                          <button onClick={() => handleDelete(d.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors" title="Delete">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
@@ -240,7 +289,7 @@ export default function PhoneSalesPage() {
       {showAddDevice && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add Device to Inventory</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{editingDeviceId ? 'Edit Device' : 'Add Device to Inventory'}</h2>
             {error && <p className="text-red-600 text-sm mb-3 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
             <form onSubmit={handleAddDevice} className="space-y-3">
               <input type="text" placeholder="Device name *" required value={deviceForm.device_name}
@@ -274,8 +323,8 @@ export default function PhoneSalesPage() {
               <textarea placeholder="Notes" value={deviceForm.notes} onChange={e => setDeviceForm({ ...deviceForm, notes: e.target.value })}
                 rows={2} className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               <div className="flex gap-3 pt-1">
-                <button type="submit" disabled={saving} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">{saving ? 'Saving...' : 'Add Device'}</button>
-                <button type="button" onClick={() => { setShowAddDevice(false); setError(null) }}
+                <button type="submit" disabled={saving} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium">{saving ? 'Saving...' : editingDeviceId ? 'Save Changes' : 'Add Device'}</button>
+                <button type="button" onClick={closeDeviceForm}
                   className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-2 rounded-lg text-sm font-medium">Cancel</button>
               </div>
             </form>
@@ -287,7 +336,7 @@ export default function PhoneSalesPage() {
       {showSellModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Record Sale</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{sellEditing ? 'Edit Sale' : 'Record Sale'}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{showSellModal.device_name} — Cost: {fmt(showSellModal.purchase_price)}</p>
             {error && <p className="text-red-600 text-sm mb-3 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
             <form onSubmit={handleSell} className="space-y-3">
@@ -315,9 +364,13 @@ export default function PhoneSalesPage() {
                 className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               <textarea placeholder="Notes" value={saleForm.sale_notes} onChange={e => setSaleForm({ ...saleForm, sale_notes: e.target.value })}
                 rows={2} className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input type="checkbox" checked={saleForm.paid} onChange={e => setSaleForm({ ...saleForm, paid: e.target.checked })} className="rounded" />
+                Customer has paid
+              </label>
               <div className="flex gap-3 pt-1">
-                <button type="submit" disabled={saving} className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm font-medium">{saving ? 'Recording...' : 'Record Sale'}</button>
-                <button type="button" onClick={() => { setShowSellModal(null); setError(null) }}
+                <button type="submit" disabled={saving} className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm font-medium">{saving ? 'Saving...' : sellEditing ? 'Save Changes' : 'Record Sale'}</button>
+                <button type="button" onClick={closeSellModal}
                   className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-2 rounded-lg text-sm font-medium">Cancel</button>
               </div>
             </form>

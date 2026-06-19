@@ -240,6 +240,7 @@ CREATE TABLE IF NOT EXISTS phone_inventory (
   purchase_price DECIMAL(10,2) NOT NULL DEFAULT 0, purchase_date DATE,
   seller VARCHAR, notes TEXT, status VARCHAR NOT NULL DEFAULT 'in_stock' CHECK (status IN ('in_stock','sold')),
   sale_price DECIMAL(10,2), sale_date DATE, customer VARCHAR, sale_notes TEXT,
+  paid BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS phone_services (
@@ -259,6 +260,7 @@ CREATE TABLE IF NOT EXISTS phone_rentals (
   rental_start DATE NOT NULL, rental_end DATE,
   rental_amount DECIMAL(10,2) NOT NULL DEFAULT 0, deposit DECIMAL(10,2) NOT NULL DEFAULT 0,
   notes TEXT, status VARCHAR NOT NULL DEFAULT 'active' CHECK (status IN ('active','returned','overdue')),
+  paid BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
 );
 
