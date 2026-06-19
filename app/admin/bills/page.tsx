@@ -3,6 +3,8 @@
 import { useState, useEffect, useContext } from 'react'
 import { CompanyContext } from '../layout'
 import { supabase } from '@/lib/supabase'
+import { getContacts } from '@/lib/api'
+import { Contact } from '@/types/database'
 
 type Bill = {
   id: string
@@ -21,6 +23,7 @@ const fmt = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigi
 export default function BillsPage() {
   const { selectedCompanyId, companies } = useContext(CompanyContext)
   const [bills, setBills] = useState<Bill[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -35,8 +38,16 @@ export default function BillsPage() {
   useEffect(() => {
     if (companyIds.length === 0) { setLoading(false); return }
     loadBills()
+    loadContacts()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCompanyId, companies])
+
+  async function loadContacts() {
+    const lists = await Promise.all(companyIds.map(id => getContacts(id, 'vendor')))
+    setContacts(lists.flat())
+  }
+
+  const vendorNames = Array.from(new Set(contacts.map(c => c.name))).sort((a, b) => a.localeCompare(b))
 
   async function loadBills() {
     setLoading(true)
@@ -180,9 +191,17 @@ export default function BillsPage() {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add Bill</h2>
             {error && <p className="text-red-600 text-sm mb-3 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</p>}
             <form onSubmit={handleSave} className="space-y-3">
-              <input type="text" placeholder="Vendor / who it's from *" required value={form.vendor}
-                onChange={e => setForm({ ...form, vendor: e.target.value })}
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              {vendorNames.length > 0 ? (
+                <select required value={form.vendor} onChange={e => setForm({ ...form, vendor: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Select vendor *</option>
+                  {(form.vendor && !vendorNames.includes(form.vendor) ? [form.vendor, ...vendorNames] : vendorNames).map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              ) : (
+                <input type="text" placeholder="Vendor / who it's from * (add Contacts to pick from a list)" required value={form.vendor}
+                  onChange={e => setForm({ ...form, vendor: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Amount</label>
