@@ -40,6 +40,7 @@ code {
     padding: 14mm 14mm !important;
   }
   /* margin:0 removes the browser's default date / title / URL headers & footers */
-  @page { margin: 0; size: auto; }
+  /* size: letter = standard US 8.5 x 11 in paper */
+  @page { margin: 0; size: letter portrait; }
   html, body { margin: 0 !important; }
 }
