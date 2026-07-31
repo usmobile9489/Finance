@@ -360,9 +360,9 @@ export default function InvoicesPage() {
                     <div key={i} className="grid grid-cols-12 gap-2 items-center">
                       <input type="text" placeholder="Description" value={li.description} onChange={e => updateLineItem(i, 'description', e.target.value)}
                         className="col-span-5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                      <input type="number" min="1" placeholder="Qty" value={li.quantity} onChange={e => updateLineItem(i, 'quantity', parseInt(e.target.value) || 1)}
+                      <input type="number" min="0" step="any" placeholder="Qty / Hrs" value={li.quantity} onChange={e => updateLineItem(i, 'quantity', parseFloat(e.target.value) || 0)}
                         className="col-span-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                      <input type="number" min="0" step="0.01" placeholder="Price" value={li.unit_price} onChange={e => updateLineItem(i, 'unit_price', parseFloat(e.target.value) || 0)}
+                      <input type="number" min="0" step="0.01" placeholder="Rate / Price" value={li.unit_price} onChange={e => updateLineItem(i, 'unit_price', parseFloat(e.target.value) || 0)}
                         className="col-span-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                       <span className="col-span-1 text-sm font-medium text-gray-700 dark:text-gray-300 text-right">{fmt(li.line_total)}</span>
                       <button type="button" onClick={() => removeLineItem(i)} className="col-span-1 text-red-400 hover:text-red-600 text-lg leading-none">×</button>

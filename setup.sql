@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS invoice_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   invoice_id UUID REFERENCES invoices(id) ON DELETE CASCADE,
   item_id UUID REFERENCES items(id),
-  description VARCHAR(500), quantity INT DEFAULT 1,
+  description VARCHAR(500), quantity NUMERIC DEFAULT 1,  -- NUMERIC so hourly items (e.g. 24.3 hrs) work
   unit_price DECIMAL(10,2) DEFAULT 0, line_total DECIMAL(12,2) DEFAULT 0,
   cost DECIMAL(10,2) DEFAULT 0
 );
